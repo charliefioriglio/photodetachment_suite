@@ -250,6 +250,10 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Centroid (bohr): {result.centroid_bohr}")
     print(f"Centroid (Å): {result.centroid_angstrom()}")
     print(f"Normalization (pre-scaling): {result.normalization:.6g}")
+    if result.left_norm is not None:
+        print(f"Left norm (Q-Chem): {result.left_norm:.6g}")
+    if result.right_norm is not None:
+        print(f"Right norm (Q-Chem): {result.right_norm:.6g}")
     print(f"Recentering iterations: {result.iterations}")
 
     if args.output:
