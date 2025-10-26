@@ -6,6 +6,7 @@ from typing import List, Sequence
 import numpy as np
 
 from .basis import QChemData, enumerate_shell_functions
+from ..models import OrbitalPair
 
 BOHR_TO_ANGSTROM = 0.529177210903
 ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM
@@ -85,6 +86,33 @@ class DysonBuildResult:
     coefficients: np.ndarray
     atom_symbols: List[str]
     atom_centers_bohr: np.ndarray
+    left_norm: float | None
+    right_norm: float | None
+
+    def to_orbital_pair(self, right: "DysonBuildResult | None" = None) -> OrbitalPair:
+        """Convert the builder result into an :class:`OrbitalPair`."""
+
+        left_scale = (self.left_norm if self.left_norm is not None else 1.0) * self.normalization
+
+        if right is None:
+            right_wave = self.psi
+            right_scale = (
+                (self.right_norm if self.right_norm is not None else 1.0)
+                * self.normalization
+            )
+        else:
+            right_wave = right.psi
+            right_scale = (
+                (right.right_norm if right.right_norm is not None else 1.0)
+                * right.normalization
+            )
+
+        return OrbitalPair(
+            left=self.psi,
+            right=right_wave,
+            left_norm=left_scale,
+            right_norm=right_scale,
+        )
 
     def centroid_angstrom(self) -> np.ndarray:
         return self.centroid_bohr * BOHR_TO_ANGSTROM
@@ -134,6 +162,8 @@ class DysonOrbitalBuilder:
             coefficients=dyson.coefficients,
             atom_symbols=[atom.symbol for atom in self.data.atoms],
             atom_centers_bohr=centers,
+            left_norm=dyson.left_norm,
+            right_norm=dyson.right_norm,
         )
 
     def _evaluate(

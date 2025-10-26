@@ -53,7 +53,8 @@ class DysonInfo:
     label: str
     coefficients: np.ndarray
     transition: str | None = None
-    norm: float | None = None
+    left_norm: float | None = None
+    right_norm: float | None = None
 
     def short_label(self) -> str:
         return self.label.lower().replace(" ", "_")

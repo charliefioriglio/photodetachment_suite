@@ -19,6 +19,9 @@ from .basis import (
 ANGSTROM_TO_BOHR = 1.0 / 0.529177210903
 PURECART_PATTERN = re.compile(r"purecart\s*=\s*\"(?P<digits>\d+)\"")
 BASIS_FN_PATTERN = re.compile(r"There are\s+(?P<n_shells>\d+) shells and (?P<n_basis>\d+) basis functions")
+NORM_PATTERN = re.compile(
+    r"(?P<side>Left|Right)\s*(?:Dyson)?\s*norm[^=]*=\s*(?P<value>[+\-0-9EeDd\.]+)"
+)
 
 
 @dataclass
@@ -202,6 +205,8 @@ def parse_basis(
 def parse_dyson_coefficients(lines: Sequence[str], n_basis: int) -> List[DysonInfo]:
     dyson_list: List[DysonInfo] = []
     idx = 0
+    norm_pairs = extract_dyson_norms(lines)
+    norm_iter = iter(norm_pairs)
     while idx < len(lines):
         line = lines[idx]
         if "Decomposition over AOs for the" not in line:
@@ -227,9 +232,37 @@ def parse_dyson_coefficients(lines: Sequence[str], n_basis: int) -> List[DysonIn
                 f"Expected {n_basis} Dyson coefficients for '{label}', found {len(coeffs)}"
             )
         dyson_list.append(DysonInfo(label=label, coefficients=np.array(coeffs)))
+        try:
+            left_norm, right_norm = next(norm_iter)
+        except StopIteration:
+            left_norm = right_norm = None
+        dyson_list[-1].left_norm = left_norm
+        dyson_list[-1].right_norm = right_norm
     if not dyson_list:
         raise ValueError("No Dyson orbital decompositions found in Q-Chem output")
     return dyson_list
+
+
+def extract_dyson_norms(lines: Sequence[str]) -> List[tuple[float | None, float | None]]:
+    norms: List[tuple[float | None, float | None]] = []
+    current_left: float | None = None
+    current_right: float | None = None
+    for line in lines:
+        match = NORM_PATTERN.search(line)
+        if not match:
+            continue
+        value = parse_float(match.group("value"))
+        side = match.group("side").lower()
+        if side == "left":
+            current_left = value
+        else:
+            current_right = value
+        if current_left is not None and current_right is not None:
+            norms.append((current_left, current_right))
+            current_left = current_right = None
+    if current_left is not None or current_right is not None:
+        norms.append((current_left, current_right))
+    return norms
 
 
 def load_qchem_output(
