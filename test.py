@@ -52,7 +52,7 @@ def ensure_common_grid(dyson_results: Sequence[DysonBuildResult]) -> CartesianGr
 
 
 def main(orbitals: Iterable[Path]) -> None:
-    axis = np.linspace(-8.0, 8.0, 65)
+    axis = np.linspace(-10.0, 10.0, 51)
     working_grid = UniformGrid(axis, axis, axis)
 
     orbital_pairs: list[OrbitalPair] = []
@@ -66,14 +66,14 @@ def main(orbitals: Iterable[Path]) -> None:
     cart_grid = ensure_common_grid(dyson_details)
 
     channel = TransitionChannel(
-        label="O2 (degenerate)",
+        label="CN",
         binding_energy_ev=0.0,
         orbitals=tuple(orbital_pairs),
         franck_condon=1.0,
     )
 
-    angle_grid = get_angle_grid("hard-coded")
-    e_ke = np.linspace(0.01, 5.0, 10)
+    angle_grid = get_angle_grid("repulsion", n_orientations=10) # "hard-coded", "repulsion", or "simple"
+    e_ke = np.array([0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
     photon_energies = channel.binding_energy_ev + e_ke
 
     result = calculate_beta(
@@ -81,7 +81,8 @@ def main(orbitals: Iterable[Path]) -> None:
         grid=cart_grid,
         angle_grid=angle_grid,
         photon_energies_ev=photon_energies,
-        continuum="analytic",
+        continuum="point_dipole",
+        continuum_options={"dipole_strength": 0.57, "l_max": 3},
         integration_method="trapezoidal",
     )
 
@@ -90,11 +91,11 @@ def main(orbitals: Iterable[Path]) -> None:
         print(f"{energy:8.3f}  {beta:6.3f}")
 
     # Optional: quick plot
-    plot_beta(result, title="O2 Beta vs Photon Energy")
+    plot_beta(result)
     import matplotlib.pyplot as plt; plt.show()
 
 
 if __name__ == "__main__":
     suite_dir = Path(__file__).resolve().parent
-    output_files = [suite_dir / "b3g.out", suite_dir / "b2g.out"]
+    output_files = [suite_dir / "CN.out"]
     main(output_files)
