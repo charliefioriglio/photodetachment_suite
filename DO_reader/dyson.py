@@ -88,6 +88,10 @@ class DysonBuildResult:
     atom_centers_bohr: np.ndarray
     left_norm: float | None
     right_norm: float | None
+    transition: str | None
+    state_index: str | None
+    symmetry: str | None
+    side: str | None
 
     def to_orbital_pair(self, right: "DysonBuildResult | None" = None) -> OrbitalPair:
         """Convert the builder result into an :class:`OrbitalPair`."""
@@ -164,6 +168,10 @@ class DysonOrbitalBuilder:
             atom_centers_bohr=centers,
             left_norm=dyson.left_norm,
             right_norm=dyson.right_norm,
+            transition=dyson.transition,
+            state_index=dyson.state_index,
+            symmetry=dyson.symmetry,
+            side=dyson.side,
         )
 
     def _evaluate(

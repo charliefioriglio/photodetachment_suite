@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from DO_reader import DysonOrbitalBuilder, UniformGrid, load_qchem_output
+from photodetachment_suite.DO_reader import DysonOrbitalBuilder, UniformGrid, load_qchem_output
 
 
 # Base palette for common elements; everything else is derived automatically.
@@ -226,8 +226,8 @@ def main(argv: list[str] | None = None) -> None:
     builder = DysonOrbitalBuilder(data)
 
     if args.list:
-        for idx, label in enumerate(builder.available_orbitals()):
-            print(f"{idx}: {label}")
+        for idx, info in enumerate(builder.data.dyson_orbitals):
+            print(f"{idx}: {info.short_label()}  ({info.display_label()})")
         return
 
     selector = pick_selector(args.orbit)

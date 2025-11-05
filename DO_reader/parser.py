@@ -22,6 +22,12 @@ BASIS_FN_PATTERN = re.compile(r"There are\s+(?P<n_shells>\d+) shells and (?P<n_b
 NORM_PATTERN = re.compile(
     r"(?P<side>Left|Right)\s*(?:Dyson)?\s*norm[^=]*=\s*(?P<value>[+\-0-9EeDd\.]+)"
 )
+REFERENCE_PATTERN = re.compile(
+    r"Reference\s*--\s*EOM-IP-CCSD state\s+(?P<state>[^\s]+)", re.IGNORECASE
+)
+DECOMP_PATTERN = re.compile(
+    r"Decomposition over AOs for the\s+(?P<label>.*)", re.IGNORECASE
+)
 
 
 @dataclass
@@ -205,64 +211,110 @@ def parse_basis(
 def parse_dyson_coefficients(lines: Sequence[str], n_basis: int) -> List[DysonInfo]:
     dyson_list: List[DysonInfo] = []
     idx = 0
-    norm_pairs = extract_dyson_norms(lines)
-    norm_iter = iter(norm_pairs)
+    current_transition: str | None = None
+    current_state_index: str | None = None
+    current_symmetry: str | None = None
+    current_norms: Dict[str, float | None] = {"left": None, "right": None}
+    processed_sides: set[str] = set()
+
     while idx < len(lines):
         line = lines[idx]
-        if "Decomposition over AOs for the" not in line:
+
+        ref_match = REFERENCE_PATTERN.search(line)
+        if ref_match:
+            token = ref_match.group("state").strip()
+            current_transition = token
+            current_state_index = None
+            current_symmetry = None
+            if "/" in token:
+                idx_part, sym_part = token.split("/", 1)
+                idx_part = idx_part.strip()
+                sym_part = sym_part.strip()
+                current_state_index = idx_part or None
+                current_symmetry = sym_part or None
+            else:
+                current_symmetry = token or None
+            processed_sides.clear()
+            current_norms = {"left": None, "right": None}
             idx += 1
             continue
-        label = line.split("Decomposition over AOs for the", 1)[1].strip().strip(":")
-        idx += 1
-        coeffs: List[float] = []
-        while idx < len(lines) and len(coeffs) < n_basis:
-            row = lines[idx].strip()
+
+        norm_match = NORM_PATTERN.search(line)
+        if norm_match:
+            value = parse_float(norm_match.group("value"))
+            side = norm_match.group("side").strip().lower()
+            current_norms[side] = value
             idx += 1
-            if not row:
-                continue
-            if "Decomposition over AOs for the" in row:
-                idx -= 1
-                break
-            parts = row.split()
-            for part in parts:
-                if len(coeffs) < n_basis:
+            continue
+
+        decomp_match = DECOMP_PATTERN.search(line)
+        if decomp_match:
+            label = decomp_match.group("label").strip().strip(":")
+            side = None
+            lowered = label.lower()
+            if "left" in lowered:
+                side = "left"
+            elif "right" in lowered:
+                side = "right"
+
+            idx += 1  # advance to coefficient rows
+            coeffs: List[float] = []
+            while idx < len(lines):
+                row = lines[idx].strip()
+                if not row:
+                    idx += 1
+                    continue
+                if row.startswith("*****"):
+                    idx += 1
+                    continue
+                if DECOMP_PATTERN.search(row) or REFERENCE_PATTERN.search(row) or row.startswith("State "):
+                    break
+                if row.startswith("g1p"):
+                    break
+                parts = row.split()
+                for part in parts:
+                    if part == "*****":
+                        continue
                     coeffs.append(parse_float(part))
-        if len(coeffs) != n_basis:
-            raise ValueError(
-                f"Expected {n_basis} Dyson coefficients for '{label}', found {len(coeffs)}"
+                idx += 1
+                if len(coeffs) >= n_basis:
+                    break
+
+            if len(coeffs) != n_basis:
+                raise ValueError(
+                    f"Expected {n_basis} Dyson coefficients for '{label}', found {len(coeffs)}"
+                )
+
+            info = DysonInfo(
+                label=label,
+                coefficients=np.array(coeffs, dtype=float),
+                transition=current_transition,
+                state_index=current_state_index,
+                symmetry=current_symmetry,
+                side=side,
             )
-        dyson_list.append(DysonInfo(label=label, coefficients=np.array(coeffs)))
-        try:
-            left_norm, right_norm = next(norm_iter)
-        except StopIteration:
-            left_norm = right_norm = None
-        dyson_list[-1].left_norm = left_norm
-        dyson_list[-1].right_norm = right_norm
+            if side == "left":
+                info.left_norm = current_norms.get("left")
+            elif side == "right":
+                info.right_norm = current_norms.get("right")
+            else:
+                info.left_norm = current_norms.get("left")
+                info.right_norm = current_norms.get("right")
+
+            dyson_list.append(info)
+            if side:
+                processed_sides.add(side)
+            if processed_sides.issuperset({"left", "right"}):
+                current_norms = {"left": None, "right": None}
+                processed_sides.clear()
+
+            continue
+
+        idx += 1
+
     if not dyson_list:
         raise ValueError("No Dyson orbital decompositions found in Q-Chem output")
     return dyson_list
-
-
-def extract_dyson_norms(lines: Sequence[str]) -> List[tuple[float | None, float | None]]:
-    norms: List[tuple[float | None, float | None]] = []
-    current_left: float | None = None
-    current_right: float | None = None
-    for line in lines:
-        match = NORM_PATTERN.search(line)
-        if not match:
-            continue
-        value = parse_float(match.group("value"))
-        side = match.group("side").lower()
-        if side == "left":
-            current_left = value
-        else:
-            current_right = value
-        if current_left is not None and current_right is not None:
-            norms.append((current_left, current_right))
-            current_left = current_right = None
-    if current_left is not None or current_right is not None:
-        norms.append((current_left, current_right))
-    return norms
 
 
 def load_qchem_output(

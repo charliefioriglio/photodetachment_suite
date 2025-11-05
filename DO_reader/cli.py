@@ -82,8 +82,8 @@ def main(argv: list[str] | None = None) -> None:
     builder = DysonOrbitalBuilder(data)
 
     if args.list:
-        for idx, label in enumerate(builder.available_orbitals()):
-            print(f"{idx}: {label}")
+        for idx, info in enumerate(builder.data.dyson_orbitals):
+            print(f"{idx}: {info.short_label()}  ({info.display_label()})")
         return
 
     axis_x = parse_axis(tuple(args.x))
@@ -121,6 +121,10 @@ def main(argv: list[str] | None = None) -> None:
         iterations=result.iterations,
         label=result.label,
         coefficients=result.coefficients,
+        transition=result.transition if result.transition is not None else "",
+        symmetry=result.symmetry if result.symmetry is not None else "",
+        state_index=result.state_index if result.state_index is not None else "",
+        side=result.side if result.side is not None else "",
     )
 
     print(f"Saved Dyson orbital '{result.label}' to {output_path}")

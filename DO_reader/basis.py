@@ -53,11 +53,76 @@ class DysonInfo:
     label: str
     coefficients: np.ndarray
     transition: str | None = None
+    state_index: str | None = None
+    symmetry: str | None = None
+    side: str | None = None
     left_norm: float | None = None
     right_norm: float | None = None
 
     def short_label(self) -> str:
-        return self.label.lower().replace(" ", "_")
+        base = self.label.lower().replace(" ", "_")
+        extra = self._normalized_transition()
+        return f"{base}__{extra}" if extra else base
+
+    def display_label(self) -> str:
+        if self.transition:
+            return f"{self.label} [{self.transition}]"
+        if self.symmetry:
+            return f"{self.label} [{self.symmetry}]"
+        return self.label
+
+    def _normalized_transition(self) -> str | None:
+        if self.transition:
+            return self.transition.replace("/", "_").replace(" ", "").lower()
+        if self.state_index and self.symmetry:
+            idx = self.state_index.strip().lower()
+            sym = self.symmetry.strip().lower()
+            return f"{idx}_{sym}"
+        if self.symmetry:
+            return self.symmetry.strip().lower()
+        return None
+
+    def selector_aliases(self) -> set[str]:
+        aliases: set[str] = set()
+        base = self.label.lower().replace(" ", "_")
+        aliases.add(base)
+        short = self.short_label()
+        aliases.add(short)
+        aliases.add(short.replace("__", "_"))
+        aliases.add(short.replace("__", "-"))
+        aliases.add(short.replace("__", "/"))
+        normalized = self._normalized_transition()
+        if normalized:
+            aliases.add(normalized)
+            aliases.add(normalized.replace("_", "-"))
+            aliases.add(normalized.replace("_", "/"))
+        if self.transition:
+            raw = self.transition.strip().lower()
+            aliases.add(raw)
+            aliases.add(raw.replace("/", "_"))
+            aliases.add(raw.replace("/", "-"))
+        if self.symmetry:
+            sym = self.symmetry.strip().lower()
+            aliases.add(sym)
+            if self.side:
+                side = self.side.strip().lower()
+                aliases.add(f"{sym}_{side}")
+                aliases.add(f"{sym}-{side}")
+                aliases.add(f"{sym}/{side}")
+            if self.state_index:
+                idx = self.state_index.strip().lower()
+                aliases.add(f"{idx}_{sym}")
+                aliases.add(f"{idx}-{sym}")
+                aliases.add(f"{idx}/{sym}")
+                if self.side:
+                    side = self.side.strip().lower()
+                    base = f"{idx}_{sym}"
+                    aliases.add(f"{base}_{side}")
+                    aliases.add(f"{base}-{side}")
+                    aliases.add(f"{base}/{side}")
+        if self.side:
+            aliases.add(self.side.strip().lower())
+        return {alias for alias in aliases if alias}
 
 
 @dataclass
@@ -70,11 +135,30 @@ class QChemData:
     def get_dyson(self, selector: str | int) -> DysonInfo:
         if isinstance(selector, int):
             return self.dyson_orbitals[selector]
-        key = selector.lower().replace(" ", "_")
+
+        normalized = selector.strip().lower()
+        variants = {
+            normalized,
+            normalized.replace(" ", "_"),
+            normalized.replace(" ", ""),
+            normalized.replace("-", "_"),
+            normalized.replace("/", "_"),
+        }
+        matches: List[DysonInfo] = []
         for info in self.dyson_orbitals:
-            if info.short_label() == key:
-                return info
-        raise KeyError(f"No Dyson orbital matching selector '{selector}'")
+            aliases = info.selector_aliases()
+            if any(variant in aliases for variant in variants):
+                matches.append(info)
+
+        if not matches:
+            raise KeyError(f"No Dyson orbital matching selector '{selector}'")
+        if len(matches) > 1:
+            options = ", ".join(match.short_label() for match in matches)
+            raise KeyError(
+                f"Selector '{selector}' is ambiguous; matched {len(matches)} orbitals: {options}. "
+                "Specify a unique label (e.g. include the symmetry or index)."
+            )
+        return matches[0]
 
 
 def double_factorial(n: int) -> int:

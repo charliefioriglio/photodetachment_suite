@@ -72,8 +72,8 @@ def main(orbitals: Iterable[Path]) -> None:
         franck_condon=1.0,
     )
 
-    angle_grid = get_angle_grid("repulsion", n_orientations=10) # "hard-coded", "repulsion", or "simple"
-    e_ke = np.array([0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+    angle_grid = get_angle_grid("repulsion", n_orientations=50) # "hard-coded", "repulsion", or "simple"
+    e_ke = np.array([0.0001, 0.001, 0.005, 0.01, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.125, 0.15, 0.175, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5])
     photon_energies = channel.binding_energy_ev + e_ke
 
     result = calculate_beta(

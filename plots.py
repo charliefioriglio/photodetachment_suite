@@ -23,10 +23,10 @@ def plot_beta(result: BetaResult, *, ax=None, label: str | None = None):
 
     fig, axis = _ensure_axes(ax)
     axis.plot(result.energies_ev, result.beta, marker="o", label=label or r"$\beta$")
-    axis.set_xlabel("Photon energy (eV)")
+    axis.set_xlabel("eKE (eV)")
     axis.set_ylabel(r"$\beta$")
-    axis.set_title("Anisotropy parameter vs photon energy")
-    axis.grid(True, alpha=0.3)
+    axis.set_title("Anisotropy parameter vs eKE")
+    axis.set_ylim(0.0, 2.0)
     if label:
         axis.legend()
     return axis if fig is None else (fig, axis)
