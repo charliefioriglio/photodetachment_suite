@@ -8,6 +8,8 @@ from typing import Dict, Literal, Protocol
 
 import numpy as np
 
+from .physical_dipole import make_physical_dipole_continuum
+
 ContinuumType = Literal["analytic", "plane_wave", "expansion", "point_dipole", "physical_dipole"]
 
 
@@ -203,6 +205,10 @@ def get_continuum_function(kind: ContinuumType, /, **kwargs) -> ContinuumFunctio
         dipole_strength = float(kwargs.get("dipole_strength", 0.0))
         l_max = int(kwargs.get("l_max", 6))
         return _make_point_dipole_continuum(dipole_strength, l_max)
+    if kind == "physical_dipole":
+        if "orbital_metadata" not in kwargs:
+            raise ValueError("physical_dipole continuum requires orbital_metadata")
+        return make_physical_dipole_continuum(**kwargs)
     raise NotImplementedError(f"Continuum model {kind!r} is not implemented yet")
 
 

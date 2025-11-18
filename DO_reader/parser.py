@@ -74,16 +74,32 @@ def extract_basis_block(lines: Sequence[str]) -> List[str]:
         if "Basis set in general basis input format" in line:
             start = idx
             break
-    if start is None:
+    if start is not None:
+        block: List[str] = []
+        cursor = start
+        while cursor < len(lines):
+            line = lines[cursor]
+            block.append(line.rstrip("\n"))
+            if line.strip().startswith("$end"):
+                break
+            cursor += 1
+        return block
+
+    # Fallback: capture the final $basis ... $end input block if the summary is absent.
+    basis_markers = [idx for idx, line in enumerate(lines) if line.strip().lower() == "$basis"]
+    if not basis_markers:
         raise ValueError("Could not find basis block in Q-Chem output")
+    start = basis_markers[-1]
     block: List[str] = []
     cursor = start
     while cursor < len(lines):
         line = lines[cursor]
         block.append(line.rstrip("\n"))
-        if line.strip().startswith("$end"):
+        if line.strip().lower() == "$end":
             break
         cursor += 1
+    else:
+        raise ValueError("Encountered $basis block without terminating $end")
     return block
 
 

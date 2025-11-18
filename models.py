@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -16,6 +16,7 @@ class OrbitalPair:
     right: np.ndarray | None = None
     left_norm: float | None = None
     right_norm: float | None = None
+    metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         left = np.asarray(self.left, dtype=np.complex128)
@@ -29,6 +30,8 @@ class OrbitalPair:
             raise ValueError("left_norm must be non-negative")
         if self.right_norm is not None and self.right_norm < 0:
             raise ValueError("right_norm must be non-negative")
+        if self.metadata is None:
+            object.__setattr__(self, "metadata", {})
 
     @property
     def right_or_left(self) -> np.ndarray:

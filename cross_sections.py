@@ -25,6 +25,21 @@ _DEFAULT_K_PERP = (
 )
 
 
+def _energy_iterator(photon_energies: np.ndarray, desc: str):
+    try:
+        from tqdm import tqdm
+
+        return tqdm(
+            photon_energies,
+            total=photon_energies.size,
+            desc=desc,
+            bar_format="{l_bar}{n_fmt}/{total_fmt}",
+            leave=False,
+        )
+    except ImportError:  # pragma: no cover - optional dependency
+        return photon_energies
+
+
 @dataclass(frozen=True)
 class CrossSectionResult:
     photon_energies_ev: np.ndarray
@@ -109,7 +124,7 @@ def calculate_total_cross_sections(
     total = np.zeros(n_energy, dtype=float)
     angle_weights = angle_grid.weights
 
-    for energy_idx, photon_ev in enumerate(photon_energies_ev):
+    for energy_idx, photon_ev in enumerate(_energy_iterator(photon_energies_ev, "total σ")):
         photon_au = photon_ev / _HARTREE_TO_EV
         for channel_idx, channel in enumerate(channels):
             eKE_ev = photon_ev - channel.binding_energy_ev
@@ -165,12 +180,14 @@ def calculate_total_cross_sections(
 
             sigma_channel = prefactor * channel_sigma_par
             sigma_channel_perp = prefactor * channel_sigma_perp
-            per_channel[energy_idx, channel_idx] = (
+            value = (
                 (4.0 * math.pi / 3.0)
                 * (sigma_channel + 2.0 * sigma_channel_perp)
             )
+            per_channel[energy_idx, channel_idx] = float(np.real_if_close(value))
 
-        total[energy_idx] = per_channel[energy_idx].sum()
+        total_value = per_channel[energy_idx].sum()
+        total[energy_idx] = float(np.real_if_close(total_value))
 
     labels = tuple(channel.label for channel in channels)
     return CrossSectionResult(
@@ -179,16 +196,68 @@ def calculate_total_cross_sections(
         per_channel=per_channel,
         channel_labels=labels,
     )
-
-
-def calculate_relative_cross_sections(result: CrossSectionResult) -> np.ndarray:
-    """Convenience wrapper returning channel fractions vs photon energy."""
+def calculate_relative_cross_sections_from_total(result: CrossSectionResult) -> np.ndarray:
+    """Return channel fractions vs photon energy from a precomputed result."""
 
     return result.relative()
+
+
+@dataclass(frozen=True)
+class RelativeCrossSectionResult:
+    photon_energies_ev: np.ndarray
+    relative_cross_section: np.ndarray
+    channel_labels: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, np.ndarray]:
+        data = {"photon_energies_ev": self.photon_energies_ev}
+        for idx, label in enumerate(self.channel_labels):
+            data[f"channel_{label}_relative_cross_section"] = self.relative_cross_section[:, idx]
+        return data
+
+
+def calculate_relative_cross_sections(
+    channels: Sequence[TransitionChannel],
+    grid: CartesianGrid,
+    angle_grid: AngleGrid,
+    photon_energies_ev: Iterable[float],
+    *,
+    continuum: ContinuumType,
+    continuum_options: dict | None = None,
+    integration_method: IntegrationMethod = "trapezoidal",
+    polarization_lab: np.ndarray | None = None,
+    k_parallel_lab: np.ndarray | None = None,
+    k_perpendicular_lab: Sequence[np.ndarray] | None = None,
+) -> RelativeCrossSectionResult:
+    """Return relative cross sections per channel for non-analytic continua."""
+
+    if continuum == "analytic":
+        raise ValueError("Relative cross sections are not available for the analytic continuum model")
+
+    total_result = calculate_total_cross_sections(
+        channels=channels,
+        grid=grid,
+        angle_grid=angle_grid,
+        photon_energies_ev=photon_energies_ev,
+        continuum=continuum,
+        continuum_options=continuum_options,
+        integration_method=integration_method,
+        polarization_lab=polarization_lab,
+        k_parallel_lab=k_parallel_lab,
+        k_perpendicular_lab=k_perpendicular_lab,
+    )
+
+    relative = calculate_relative_cross_sections_from_total(total_result)
+    return RelativeCrossSectionResult(
+        photon_energies_ev=total_result.photon_energies_ev,
+        relative_cross_section=relative,
+        channel_labels=total_result.channel_labels,
+    )
 
 
 __all__ = [
     "CrossSectionResult",
     "calculate_total_cross_sections",
     "calculate_relative_cross_sections",
+    "RelativeCrossSectionResult",
+    "calculate_relative_cross_sections_from_total",
 ]

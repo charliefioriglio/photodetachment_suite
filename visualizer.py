@@ -9,8 +9,6 @@ import numpy as np
 
 from photodetachment_suite.DO_reader import DysonOrbitalBuilder, UniformGrid, load_qchem_output
 
-
-# Base palette for common elements; everything else is derived automatically.
 ELEMENT_COLORS = {
     "H": "white",
     "C": "dimgray",

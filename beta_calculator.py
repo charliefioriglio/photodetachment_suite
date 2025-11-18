@@ -25,6 +25,21 @@ _DEFAULT_K_PERP = (
 )
 
 
+def _energy_iterator(photon_energies: np.ndarray, desc: str):
+    try:
+        from tqdm import tqdm
+
+        return tqdm(
+            photon_energies,
+            total=photon_energies.size,
+            desc=desc,
+            bar_format="{l_bar}{n_fmt}/{total_fmt}",
+            leave=False,
+        )
+    except ImportError:  # pragma: no cover - optional dependency
+        return photon_energies
+
+
 @dataclass(frozen=True)
 class BetaResult:
     energies_ev: np.ndarray
@@ -120,7 +135,7 @@ def calculate_beta(
     beta_vals = np.zeros_like(photon_energies_ev)
     sigma_total = np.zeros_like(photon_energies_ev)
 
-    for idx, photon_ev in enumerate(photon_energies_ev):
+    for idx, photon_ev in enumerate(_energy_iterator(photon_energies_ev, "beta")):
         photon_au = photon_ev / _HARTREE_TO_EV
         sigma_par_total = 0.0
         sigma_perp_total = 0.0
@@ -181,14 +196,14 @@ def calculate_beta(
             sigma_perp_total += prefactor * channel_sigma_perp
 
         denom = sigma_par_total + 2.0 * sigma_perp_total
-        sigma_par[idx] = sigma_par_total
-        sigma_perp[idx] = sigma_perp_total
+        sigma_par[idx] = float(np.real_if_close(sigma_par_total))
+        sigma_perp[idx] = float(np.real_if_close(sigma_perp_total))
         beta_vals[idx] = (
             2.0 * (sigma_par_total - sigma_perp_total) / denom
             if denom != 0.0
             else 0.0
         )
-        sigma_total[idx] = (4.0 * math.pi / 3.0) * denom
+        sigma_total[idx] = float(np.real_if_close((4.0 * math.pi / 3.0) * denom))
 
     return BetaResult(
         energies_ev=photon_energies_ev,

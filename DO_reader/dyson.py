@@ -111,11 +111,29 @@ class DysonBuildResult:
                 * right.normalization
             )
 
+        metadata: dict[str, np.ndarray | float | list[str]] = {
+            "atom_symbols": list(self.atom_symbols),
+            "atom_centers_bohr": self.atom_centers_bohr.copy(),
+        }
+
+        if self.atom_centers_bohr.size:
+            midpoint = np.mean(self.atom_centers_bohr, axis=0)
+            metadata["bond_midpoint_bohr"] = midpoint
+            if self.atom_centers_bohr.shape[0] == 2:
+                vec = self.atom_centers_bohr[0] - self.atom_centers_bohr[1]
+                length = float(np.linalg.norm(vec))
+                if length > EPS:
+                    metadata["bond_vector_bohr"] = vec
+                    metadata["bond_axis"] = vec / length
+                    metadata["bond_length_bohr"] = length
+                    metadata["half_bond_length_bohr"] = 0.5 * length
+
         return OrbitalPair(
             left=self.psi,
             right=right_wave,
             left_norm=left_scale,
             right_norm=right_scale,
+            metadata=metadata,
         )
 
     def centroid_angstrom(self) -> np.ndarray:

@@ -27,7 +27,10 @@ def compute_orientational_amplitudes(
 
     X, Y, Z = grid.mesh
     x, y, z = grid.x, grid.y, grid.z
-    continuum_fn = get_continuum_function(continuum, **(continuum_options or {}))
+    options = dict(continuum_options or {})
+    if "orbital_metadata" not in options and hasattr(orbital, "metadata"):
+        options["orbital_metadata"] = dict(orbital.metadata)
+    continuum_fn = get_continuum_function(continuum, **options)
 
     amplitudes = np.zeros(len(angle_grid.weights), dtype=np.complex128)
     left = orbital.scaled_left()
