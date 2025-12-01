@@ -1,7 +1,9 @@
+"""Wavefunction construction utilities for Dyson orbitals on uniform grids."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
 import numpy as np
 
@@ -15,6 +17,8 @@ EPS = 1.0e-12
 
 @dataclass
 class UniformGrid:
+    """Simple Cartesian grid definition with unit-aware axes."""
+
     x: np.ndarray  # 1D axis in Bohr
     y: np.ndarray
     z: np.ndarray
@@ -29,6 +33,8 @@ class UniformGrid:
 
     @property
     def spacing(self) -> tuple[float, float, float]:
+        """Return ``(dx, dy, dz)`` spacing in the current unit system."""
+
         if len(self.x) < 2 or len(self.y) < 2 or len(self.z) < 2:
             raise ValueError("Each grid axis must contain at least two points")
         dx = float(self.x[1] - self.x[0])
@@ -37,20 +43,30 @@ class UniformGrid:
         return dx, dy, dz
 
     def differential_volume(self) -> float:
+        """Volume element ``dx * dy * dz`` consistent with :meth:`spacing`."""
+
         dx, dy, dz = self.spacing
         return dx * dy * dz
 
     def mesh(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return ``np.meshgrid`` arrays with ``ij`` indexing."""
+
         return np.meshgrid(self.x, self.y, self.z, indexing="ij")
 
     def in_bohr(self) -> "UniformGrid":
+        """Return a copy of the grid expressed in Bohr."""
+
         return self.to_unit("bohr")
 
     def shift(self, offset: Sequence[float]) -> "UniformGrid":
+        """Translate the grid by ``offset`` (given in the current unit)."""
+
         offset = np.asarray(offset, dtype=float)
         return UniformGrid(self.x - offset[0], self.y - offset[1], self.z - offset[2], unit=self.unit)
 
     def to_unit(self, target: str) -> "UniformGrid":
+        """Return a copy of the grid expressed in ``target`` units."""
+
         target = target.lower()
         if target not in {"bohr", "angstrom"}:
             raise ValueError("Target unit must be 'bohr' or 'angstrom'")
@@ -67,6 +83,8 @@ class UniformGrid:
 
 @dataclass
 class EvaluationResult:
+    """Intermediate output from evaluating the AO expansion on a grid."""
+
     psi: np.ndarray
     X: np.ndarray
     Y: np.ndarray
@@ -77,6 +95,8 @@ class EvaluationResult:
 
 @dataclass
 class DysonBuildResult:
+    """Final, normalized Dyson orbital sampled on the requested grid."""
+
     label: str
     psi: np.ndarray
     grid: UniformGrid
@@ -137,18 +157,26 @@ class DysonBuildResult:
         )
 
     def centroid_angstrom(self) -> np.ndarray:
+        """Return the centroid converted to Ångström."""
+
         return self.centroid_bohr * BOHR_TO_ANGSTROM
 
     def atom_centers_angstrom(self) -> np.ndarray:
+        """Return nuclear coordinates converted to Ångström."""
+
         return self.atom_centers_bohr * BOHR_TO_ANGSTROM
 
 
 class DysonOrbitalBuilder:
+    """Evaluate Dyson orbitals from parsed Q-Chem data on arbitrary grids."""
+
     def __init__(self, data: QChemData):
         self.data = data
         self._original_centers = np.array([atom.center_bohr for atom in data.atoms], dtype=float)
 
     def available_orbitals(self) -> List[str]:
+        """List the short labels for all parsed Dyson orbitals."""
+
         return [info.short_label() for info in self.data.dyson_orbitals]
 
     def build_orbital(
@@ -159,8 +187,11 @@ class DysonOrbitalBuilder:
         max_iter: int = 3,
         tol: float = 1.0e-6,
     ) -> DysonBuildResult:
+        """Evaluate and (optionally) recenter a Dyson orbital on ``grid``."""
+
         dyson = self.data.get_dyson(selector)
         grid_bohr = grid.in_bohr()
+        target_unit = grid.unit.lower()
         centers = self._original_centers.copy()
 
         result = self._evaluate(dyson.coefficients, centers, grid_bohr)
@@ -174,12 +205,14 @@ class DysonOrbitalBuilder:
             centroid = self._centroid(result.psi, result.X, result.Y, result.Z, result.dV)
             iterations += 1
 
+        psi_out, grid_out, normalization = self._to_unit(result.psi, grid_bohr, result.norm, target_unit)
+
         return DysonBuildResult(
             label=dyson.short_label(),
-            psi=result.psi,
-            grid=grid_bohr,
+            psi=psi_out,
+            grid=grid_out,
             centroid_bohr=centroid,
-            normalization=result.norm,
+            normalization=normalization,
             iterations=iterations,
             coefficients=dyson.coefficients,
             atom_symbols=[atom.symbol for atom in self.data.atoms],
@@ -198,6 +231,8 @@ class DysonOrbitalBuilder:
         centers: np.ndarray,
         grid: UniformGrid,
     ) -> EvaluationResult:
+        """Evaluate the AO expansion coefficients on ``grid`` (always in Bohr)."""
+
         X, Y, Z = grid.mesh()
         dV = grid.differential_volume()
         ao_functions = self._assemble_ao_functions(centers, X, Y, Z, dV)
@@ -221,6 +256,8 @@ class DysonOrbitalBuilder:
         Z: np.ndarray,
         dV: float,
     ) -> List[np.ndarray]:
+        """Assemble all AO values for the provided atomic centers."""
+
         ao_values: List[np.ndarray] = []
         for atom, center in zip(self.data.atoms, centers):
             for shell in atom.shells:
@@ -237,6 +274,8 @@ class DysonOrbitalBuilder:
         Z: np.ndarray,
         dV: float,
     ) -> np.ndarray:
+        """Return the density centroid in Bohr coordinates."""
+
         density = np.abs(psi) ** 2
         weight = float(np.sum(density) * dV)
         if weight < EPS:
@@ -245,3 +284,23 @@ class DysonOrbitalBuilder:
         cy = float(np.sum(density * Y) * dV)
         cz = float(np.sum(density * Z) * dV)
         return np.array([cx, cy, cz]) / weight
+
+    @staticmethod
+    def _to_unit(
+        psi: np.ndarray,
+        grid_bohr: UniformGrid,
+        normalization: float,
+        target_unit: str,
+    ) -> Tuple[np.ndarray, UniformGrid, float]:
+        """Convert ``psi`` and ``grid`` to ``target_unit`` while preserving normalization."""
+
+        target_unit = target_unit.lower()
+        if target_unit == "bohr":
+            return psi, grid_bohr, normalization
+        if target_unit != "angstrom":
+            raise ValueError(f"Unsupported grid unit '{target_unit}'")
+
+        scale = BOHR_TO_ANGSTROM
+        amp_scale = scale ** 1.5  # wavefunctions scale with sqrt of Jacobian
+        psi_scaled = psi / amp_scale
+        return psi_scaled, grid_bohr.to_unit("angstrom"), normalization

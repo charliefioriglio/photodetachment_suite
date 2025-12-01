@@ -1,3 +1,5 @@
+"""Parsing utilities for converting Q-Chem output into Dyson orbital data."""
+
 from __future__ import annotations
 
 import re
@@ -32,6 +34,8 @@ DECOMP_PATTERN = re.compile(
 
 @dataclass
 class GeometryRecord:
+    """Single atom entry extracted from the ``Standard Nuclear Orientation`` table."""
+
     symbol: str
     coord_angstrom: np.ndarray
 
@@ -41,11 +45,15 @@ class GeometryRecord:
 
 
 def parse_float(token: str) -> float:
+    """Parse floats that may use Fortran ``D`` exponents."""
+
     token = token.replace("D", "E").replace("d", "E")
     return float(token)
 
 
 def extract_geometry(lines: Sequence[str]) -> List[GeometryRecord]:
+    """Return the last reported geometry from a Q-Chem output file."""
+
     geometry: List[GeometryRecord] = []
     for idx, line in enumerate(lines):
         if "Standard Nuclear Orientation" in line:
@@ -69,6 +77,8 @@ def extract_geometry(lines: Sequence[str]) -> List[GeometryRecord]:
 
 
 def extract_basis_block(lines: Sequence[str]) -> List[str]:
+    """Extract the basis definition block or fall back to the final ``$basis`` block."""
+
     start = None
     for idx, line in enumerate(lines):
         if "Basis set in general basis input format" in line:
@@ -104,6 +114,8 @@ def extract_basis_block(lines: Sequence[str]) -> List[str]:
 
 
 def resolve_pure_map(purecart: str | None, overrides: Dict[int, bool] | None) -> Dict[int, bool]:
+    """Resolve the spherical/cartesian flags for angular momenta >= 2."""
+
     mapping: Dict[int, bool] = {}
     if purecart:
         digits = [int(char) for char in purecart if char.isdigit()]
@@ -126,6 +138,7 @@ def parse_shell(
     is_pure: bool,
     shell_index: int,
 ) -> ShellSpec:
+    """Parse a single shell entry and construct a :class:`ShellSpec`."""
     header = shell_lines[0].split()
     if len(header) < 3:
         raise ValueError(f"Malformed shell header: '{shell_lines[0]}'")
@@ -161,6 +174,7 @@ def parse_shell(
 def parse_basis(
     basis_lines: Sequence[str], geometry: Sequence[GeometryRecord], pure_map: Dict[int, bool]
 ) -> List[AtomSpec]:
+    """Convert the raw basis block into a list of :class:`AtomSpec` entries."""
     atoms: List[AtomSpec] = []
     geom_iter = iter(geometry)
     current_atom: AtomSpec | None = None
@@ -225,6 +239,8 @@ def parse_basis(
 
 
 def parse_dyson_coefficients(lines: Sequence[str], n_basis: int) -> List[DysonInfo]:
+    """Extract all Dyson orbital coefficient vectors from the output text."""
+
     dyson_list: List[DysonInfo] = []
     idx = 0
     current_transition: str | None = None
@@ -337,6 +353,7 @@ def load_qchem_output(
     path: str | Path,
     pure_overrides: Dict[int, bool] | None = None,
 ) -> QChemData:
+    """High-level helper that returns structured Dyson orbital data for a run."""
     text = Path(path).read_text()
     lines = text.splitlines()
 

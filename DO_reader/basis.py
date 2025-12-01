@@ -1,3 +1,5 @@
+"""Data structures and helpers for handling Gaussian basis information."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -42,6 +44,8 @@ class ShellSpec:
 
 @dataclass
 class AtomSpec:
+    """Atom entry paired with all contracted shells centred at ``center_bohr``."""
+
     symbol: str
     index: int
     center_bohr: np.ndarray
@@ -50,6 +54,8 @@ class AtomSpec:
 
 @dataclass
 class DysonInfo:
+    """Metadata and coefficient vector for a single Dyson orbital."""
+
     label: str
     coefficients: np.ndarray
     transition: str | None = None
@@ -127,6 +133,8 @@ class DysonInfo:
 
 @dataclass
 class QChemData:
+    """Container returned by :func:`DO_reader.parser.load_qchem_output`."""
+
     atoms: List[AtomSpec]
     dyson_orbitals: List[DysonInfo]
     n_basis_functions: int
@@ -162,6 +170,8 @@ class QChemData:
 
 
 def double_factorial(n: int) -> int:
+    """Return ``n!!`` for non-negative ``n``."""
+
     if n <= 0:
         return 1
     result = 1
@@ -172,6 +182,8 @@ def double_factorial(n: int) -> int:
 
 
 def norm_cartesian_gaussian(alpha: float, lx: int, ly: int, lz: int) -> float:
+    """Normalization constant for a Cartesian Gaussian with exponents ``lx, ly, lz``."""
+
     l = lx + ly + lz
     prefactor = (2.0 * alpha / np.pi) ** 0.75
     numerator = (4.0 * alpha) ** l
@@ -193,6 +205,8 @@ def gaussian_primitive(
     Z: np.ndarray,
     center: Sequence[float],
 ) -> np.ndarray:
+    """Evaluate a single normalized Gaussian primitive on the provided grid."""
+
     cx, cy, cz = center
     xs = X - cx
     ys = Y - cy
@@ -215,6 +229,8 @@ def gaussian_primitive(
 
 
 def cartesian_monomials(l: int) -> List[Tuple[int, int, int]]:
+    """Enumerate ``(lx, ly, lz)`` triplets whose degrees sum to ``l``."""
+
     combos: List[Tuple[int, int, int]] = []
     for lx in range(l, -1, -1):
         for ly in range(l - lx, -1, -1):
@@ -278,6 +294,8 @@ def build_primitive_bundle(
     Z: np.ndarray,
     dV: float,
 ) -> Tuple[List[np.ndarray], np.ndarray]:
+    """Cache primitive values and overlaps for a given monomial."""
+
     values = [
         gaussian_primitive(alpha, lx, ly, lz, X, Y, Z, center)
         for alpha in exponents
@@ -295,6 +313,8 @@ def build_primitive_bundle(
 def contract_gaussians(
     primitives: Sequence[np.ndarray], overlap: np.ndarray, coeffs: np.ndarray
 ) -> np.ndarray:
+    """Form a normalized contracted AO from primitive values."""
+
     coeffs = np.asarray(coeffs, dtype=float)
     ao = np.zeros_like(primitives[0])
     for c, prim in zip(coeffs, primitives):
@@ -307,6 +327,8 @@ def contract_gaussians(
 
 
 def degeneracy(l: int, is_pure: bool) -> int:
+    """Number of functions produced by a shell with angular momentum ``l``."""
+
     if l == 0:
         return 1
     if l == 1:
@@ -324,6 +346,8 @@ def enumerate_shell_functions(
     Z: np.ndarray,
     dV: float,
 ) -> List[np.ndarray]:
+    """Return normalized AO values for every contraction/component in ``shell``."""
+
     l = shell.angular_momentum
     combos: List[List[Tuple[float, Tuple[int, int, int]]]]
     if shell.is_pure and l >= 2:
@@ -365,6 +389,8 @@ def enumerate_shell_functions(
 
 
 def total_basis_functions(atoms: Sequence[AtomSpec]) -> int:
+    """Count the total number of basis functions implied by ``atoms``."""
+
     count = 0
     for atom in atoms:
         for shell in atom.shells:
