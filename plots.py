@@ -12,6 +12,8 @@ from .cross_sections import CrossSectionResult
 
 
 def _ensure_axes(ax):
+    """Return ``(fig, ax)`` where ``fig`` may be ``None`` if input axes provided."""
+
     if ax is None:
         fig, ax = plt.subplots()
         return fig, ax

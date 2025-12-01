@@ -28,6 +28,7 @@ def integrate_scalar_field(
     ----------
     values:
         Array with shape ``(len(x), len(y), len(z))`` representing the integrand.
+            Complex-valued inputs are supported and preserved in the return value.
     x, y, z:
         One-dimensional coordinate arrays describing the grid axes.
     method:

@@ -35,13 +35,19 @@ class OrbitalPair:
 
     @property
     def right_or_left(self) -> np.ndarray:
+        """Return the available orbital (right when present, otherwise left)."""
+
         return self.right if self.right is not None else self.left
 
     def scaled_left(self) -> np.ndarray:
+        """Return the left orbital scaled by ``left_norm`` if provided."""
+
         factor = self.left_norm if self.left_norm is not None else 1.0
         return self.left * factor
 
     def scaled_right(self) -> np.ndarray:
+        """Return the right orbital scaled by ``right_norm`` or fallback left."""
+
         if self.right is None:
             return self.scaled_left()
         factor = self.right_norm if self.right_norm is not None else 1.0
@@ -68,6 +74,8 @@ class TransitionChannel:
 
     @property
     def franck_condon_squared(self) -> float:
+        """Return :math:`|FC|^2`, used repeatedly in cross sections."""
+
         return self.franck_condon ** 2
 
 
