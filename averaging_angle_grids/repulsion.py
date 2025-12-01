@@ -18,6 +18,8 @@ def _fibonacci_sphere(
     rng: np.random.Generator,
     perturb_strength: float = 0.1,
 ) -> np.ndarray:
+    """Return points quasi-uniformly distributed on a sphere via Fibonacci sampling."""
+
     golden_ratio = (1.0 + math.sqrt(5.0)) / 2.0
     i = np.arange(n_points, dtype=float)
     z = 1.0 - 2.0 * (i + 0.5) / n_points
@@ -58,6 +60,26 @@ def generate_repulsion_grid(
     verbose: bool = False,
 ) -> "AngleGrid":
     """Generate orientations by iteratively relaxing a repulsive point set.
+
+    Parameters
+    ----------
+    n_orientations:
+        Number of orientations to produce; also determines the uniform weights.
+    gamma_fixed:
+        Constant gamma rotation (ZYZ convention) assigned to each sample.
+    step_size:
+        Scalar step applied to the pairwise repulsion force.
+    tol:
+        Termination criterion based on the largest displacement magnitude.
+    max_iter:
+        Maximum number of relaxation sweeps before giving up.
+    perturb_strength:
+        Amplitude of the random tangential jitter applied to the initial
+        Fibonacci sphere.
+    seed:
+        Optional integer or ``numpy.random.Generator`` used to seed the RNG.
+    verbose:
+        When ``True`` prints convergence progress.
 
     Returns
     -------

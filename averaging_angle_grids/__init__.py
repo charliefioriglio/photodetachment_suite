@@ -20,6 +20,8 @@ AngleGridMethod = Literal["hard-coded", "simple", "repulsion"]
 
 
 class GridFactory(Protocol):
+    """Callable signature implemented by every grid generator in this package."""
+
     def __call__(self, *args, **kwargs) -> "AngleGrid":  # pragma: no cover - typing protocol
         ...
 
@@ -32,6 +34,8 @@ class AngleGrid:
     weights: np.ndarray
 
     def __post_init__(self) -> None:
+        """Validate angle/weight dimensionality to avoid downstream surprises."""
+
         if self.angles.ndim != 2 or self.angles.shape[1] != 3:
             raise ValueError("angles must be a 2D array with shape (N, 3)")
         if self.weights.ndim != 1:
@@ -53,7 +57,7 @@ _FACTORIES: Dict[AngleGridMethod, GridFactory] = {
 
 
 def available_methods() -> Iterable[AngleGridMethod]:
-    """Return an iterable of supported grid method names."""
+    """Return the live view of available grid method names."""
 
     return _FACTORIES.keys()
 

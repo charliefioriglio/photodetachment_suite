@@ -479,13 +479,18 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def load_hard_coded_grid(*, copy: bool = True) -> "AngleGrid":
-    """Return the historical 150-angle grid.
+    """Return the historical 150-angle grid with normalized weights.
 
     Parameters
     ----------
     copy:
         When ``True`` (default) a copy of the internal array is returned so the
         caller can modify it without affecting the cached data.
+
+    Returns
+    -------
+    AngleGrid
+        Angles with gamma fixed to zero and weights normalized to unity.
     """
 
     from . import AngleGrid

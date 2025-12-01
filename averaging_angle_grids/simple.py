@@ -13,7 +13,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _alloc_alpha_counts(weights: np.ndarray, target_total: int) -> np.ndarray:
-    """Allocate how many alpha samples each beta band should receive."""
+    """Allocate how many alpha samples each beta band should receive.
+
+    Uses weighted rounding with a simple largest-remainder correction so the
+    total matches ``target_total`` while ensuring every band receives at least
+    one sample. This keeps the subsequent alpha stratification numerically
+    stable even for small grids.
+    """
 
     raw = weights * target_total
     counts = np.maximum(1, np.floor(raw).astype(int))
