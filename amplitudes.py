@@ -23,7 +23,30 @@ def compute_orientational_amplitudes(
     integration_method: IntegrationMethod,
     continuum_options: dict | None = None,
 ) -> np.ndarray:
-    """Return transition amplitudes for each Euler orientation."""
+    """Return transition amplitudes for each Euler orientation.
+
+    Parameters
+    ----------
+    orbital:
+        Dyson orbital pair with left/right components defined on ``grid``.
+    grid:
+        Cartesian grid furnishing the spatial sample points (in Bohr).
+    angle_grid:
+        Euler orientations and associated quadrature weights.
+    k_lab, pol_lab:
+        Lab-frame photoelectron momentum and polarization vectors.
+    continuum:
+        Identifier for the continuum wavefunction model.
+    integration_method:
+        Numerical quadrature rule applied to the volumetric integrals.
+    continuum_options:
+        Optional keyword arguments forwarded to the continuum factory.
+
+    Returns
+    -------
+    np.ndarray
+        Real-valued orientational intensities with length ``len(angle_grid.weights)``.
+    """
 
     X, Y, Z = grid.mesh
     x, y, z = grid.x, grid.y, grid.z
@@ -51,13 +74,14 @@ def compute_orientational_amplitudes(
         A_R = integrate_scalar_field(integrand_R, x, y, z, method=integration_method)
         amplitudes[idx] = A_L * A_R
 
-    return amplitudes
+    return np.real_if_close(amplitudes)
 
 
 def weighted_intensity(amplitudes: np.ndarray, weights: np.ndarray) -> float:
-    """Compute the weighted average of |amplitude|^2."""
+    """Compute the weighted average of the orientational intensities."""
 
-    return float(np.average(np.abs(amplitudes) ** 2, weights=weights))
+    value = np.average(amplitudes, weights=weights)
+    return float(np.real_if_close(value))
 
 
 __all__ = ["compute_orientational_amplitudes", "weighted_intensity"]

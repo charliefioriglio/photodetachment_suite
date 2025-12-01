@@ -19,11 +19,13 @@ class ContinuumFunction(Protocol):
 
 
 def _plane_wave(k_vec: np.ndarray, X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> np.ndarray:
+    """Return the analytic plane wave ``exp(i k·r)``."""
+
     return np.exp(1j * (k_vec[0] * X + k_vec[1] * Y + k_vec[2] * Z))
 
 
 try:  # pragma: no cover - optional dependency
-    from scipy.special import spherical_jn, jv, sph_harm_y as sph_harm
+    from scipy.special import spherical_jn, jv, sph_harm
     from sympy.physics.wigner import wigner_3j
 except ImportError:  # pragma: no cover - optional dependency
     sph_harm = None
@@ -33,6 +35,8 @@ except ImportError:  # pragma: no cover - optional dependency
 
 
 def _make_plane_wave_expansion(l_max: int) -> ContinuumFunction:
+    """Return a plane-wave expansion truncated at angular momentum ``l_max``."""
+
     if l_max < 0:
         raise ValueError("l_max must be non-negative")
     if sph_harm is None or spherical_jn is None:
@@ -70,6 +74,8 @@ def _make_plane_wave_expansion(l_max: int) -> ContinuumFunction:
 
 
 def _spherical_bessel_general_order(order: float, kr: np.ndarray) -> np.ndarray:
+    """Evaluate a spherical Bessel function of (possibly fractional) order."""
+
     kr = np.asarray(kr, dtype=float)
     kr_safe = np.where(kr > 1.0e-12, kr, 1.0e-12)
     values = np.sqrt(np.pi / (2.0 * kr_safe)) * jv(order + 0.5, kr_safe)
@@ -78,6 +84,8 @@ def _spherical_bessel_general_order(order: float, kr: np.ndarray) -> np.ndarray:
 
 @lru_cache(maxsize=None)
 def _point_dipole_eigensystem(dipole_strength: float, lam: int, l_max: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return eigenvalues/vectors of the point-dipole angular Hamiltonian."""
+
     if wigner_3j is None:
         raise ImportError("SciPy is required for the point dipole continuum model")
 
@@ -102,23 +110,52 @@ def _point_dipole_eigensystem(dipole_strength: float, lam: int, l_max: int) -> t
     return eigvals, eigvecs, l_values
 
 
+def _evaluate_omega_fields(
+    eigvecs: np.ndarray,
+    l_values: np.ndarray,
+    lam: int,
+    theta: np.ndarray,
+    phi: np.ndarray,
+) -> np.ndarray:
+    """Project spherical harmonics onto the dipole eigenbasis."""
+
+    harmonics = np.array([sph_harm(lam, l, phi, theta) for l in l_values])
+    return np.tensordot(eigvecs.T, harmonics, axes=([1], [0]))
+
+
+def _point_dipole_coefficient(
+    eigvals: np.ndarray,
+    omega_dir: np.ndarray,
+    mode_idx: int,
+) -> complex:
+    """Return the continuum expansion coefficient for a single eigenmode."""
+
+    eigval = eigvals[mode_idx]
+    L_eff = 0.5 * (-1.0 + math.sqrt(1.0 + 4.0 * eigval))
+    phase = np.exp(0.5j * math.pi * L_eff)
+    return 4.0 * math.pi * phase * np.conjugate(omega_dir[mode_idx])
+
+
 def _evaluate_point_dipole_angular(
     dipole_strength: float,
     lam: int,
     l_max: int,
     theta: np.ndarray,
     phi: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Evaluate point-dipole angular eigenmodes on the supplied grid."""
+
     if sph_harm is None:
         raise ImportError("SciPy is required for the point dipole continuum model")
 
     eigvals, eigvecs, l_values = _point_dipole_eigensystem(dipole_strength, lam, l_max)
-    Y_stack = np.array([sph_harm(l, lam, theta, phi) for l in l_values])
-    omega = np.tensordot(eigvecs.T, Y_stack, axes=([1], [0]))
-    return eigvals, omega
+    omega = _evaluate_omega_fields(eigvecs, l_values, lam, theta, phi)
+    return eigvals, eigvecs, l_values, omega
 
 
 def _cartesian_to_spherical(X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return ``(r, θ, φ)`` computed from Cartesian coordinates."""
+
     r = np.sqrt(X * X + Y * Y + Z * Z)
     with np.errstate(divide="ignore", invalid="ignore"):
         cos_theta = np.divide(Z, r, out=np.zeros_like(Z), where=r > 0.0)
@@ -128,12 +165,14 @@ def _cartesian_to_spherical(X: np.ndarray, Y: np.ndarray, Z: np.ndarray) -> tupl
 
 
 def _make_point_dipole_continuum(dipole_strength: float, l_max: int) -> ContinuumFunction:
+    """Construct the anisotropic point-dipole continuum model."""
+
     if wigner_3j is None or sph_harm is None or jv is None:
         raise ImportError("SciPy is required for the point dipole continuum model")
     if l_max < 0:
         raise ValueError("l_max must be non-negative")
 
-    D = float(dipole_strength) / 2.0
+    D = float(dipole_strength)
     if abs(D) < 1.0e-12:
         return _plane_wave
 
@@ -149,12 +188,14 @@ def _make_point_dipole_continuum(dipole_strength: float, l_max: int) -> Continuu
 
         k_hat = k_vec / k_mag
         theta_k = math.acos(np.clip(k_hat[2], -1.0, 1.0)) if k_mag > 0.0 else 0.0
-        phi_k = math.atan2(k_hat[1], k_hat[0]) if k_mag > 0.0 else 0.0
+        phi_k = (math.atan2(k_hat[1], k_hat[0]) + 2.0 * math.pi) % (2.0 * math.pi) if k_mag > 0.0 else 0.0
+        theta_dir = np.array([theta_k])
+        phi_dir = np.array([phi_k])
 
         psi = np.zeros_like(X, dtype=np.complex128)
         for lam in range(-l_max, l_max + 1):
-            eigvals, omega_grid = _evaluate_point_dipole_angular(D, lam, l_max, theta, phi)
-            _, omega_dir = _evaluate_point_dipole_angular(D, lam, l_max, np.array([theta_k]), np.array([phi_k]))
+            eigvals, eigvecs, l_values, omega_grid = _evaluate_point_dipole_angular(D, lam, l_max, theta, phi)
+            omega_dir = _evaluate_omega_fields(eigvecs, l_values, lam, theta_dir, phi_dir)
             omega_dir = np.squeeze(omega_dir, axis=-1)
 
             for mode_idx, eigval in enumerate(eigvals):
@@ -165,7 +206,7 @@ def _make_point_dipole_continuum(dipole_strength: float, l_max: int) -> Continuu
                     continue
                 radial = _spherical_bessel_general_order(L_eff, k_mag * r)
                 mode = radial * omega_grid[mode_idx]
-                coeff = complex(omega_dir[mode_idx])
+                coeff = _point_dipole_coefficient(eigvals, omega_dir, mode_idx)
                 psi += coeff * mode
 
         return psi
