@@ -26,6 +26,8 @@ _DEFAULT_K_PERP = (
 
 
 def _energy_iterator(photon_energies: np.ndarray, desc: str):
+    """Wrap a photon-energy iterable with tqdm when available."""
+
     try:
         from tqdm import tqdm
 
@@ -42,6 +44,8 @@ def _energy_iterator(photon_energies: np.ndarray, desc: str):
 
 @dataclass(frozen=True)
 class CrossSectionResult:
+    """Container for total and per-channel cross sections."""
+
     photon_energies_ev: np.ndarray
     total_cross_section: np.ndarray
     per_channel: np.ndarray
@@ -204,6 +208,8 @@ def calculate_relative_cross_sections_from_total(result: CrossSectionResult) -> 
 
 @dataclass(frozen=True)
 class RelativeCrossSectionResult:
+    """Relative (per-channel) cross sections as fractions of the total."""
+
     photon_energies_ev: np.ndarray
     relative_cross_section: np.ndarray
     channel_labels: tuple[str, ...]

@@ -26,6 +26,8 @@ _DEFAULT_K_PERP = (
 
 
 def _energy_iterator(photon_energies: np.ndarray, desc: str):
+    """Wrap a photon-energy iterable with tqdm progress when available."""
+
     try:
         from tqdm import tqdm
 
@@ -42,6 +44,8 @@ def _energy_iterator(photon_energies: np.ndarray, desc: str):
 
 @dataclass(frozen=True)
 class BetaResult:
+    """Outputs from :func:`calculate_beta`, including partial cross sections."""
+
     energies_ev: np.ndarray
     beta: np.ndarray
     sigma_parallel: np.ndarray
