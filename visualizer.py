@@ -7,7 +7,12 @@ from pathlib import Path
 
 import numpy as np
 
-from photodetachment_suite.DO_reader import DysonOrbitalBuilder, UniformGrid, load_qchem_output
+from photodetachment_suite.DO_reader import (
+    DysonBuildResult,
+    DysonOrbitalBuilder,
+    UniformGrid,
+    load_qchem_output,
+)
 
 ELEMENT_COLORS = {
     "H": "white",
@@ -20,6 +25,8 @@ EPS = 1.0e-12
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for the Dyson orbital visualizer."""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("qchem_output", help="Path to Q-Chem Dyson job output file")
     parser.add_argument(
@@ -90,6 +97,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def ensure_backend(backend: str | None, no_show: bool) -> None:
+    """Select a Matplotlib backend, defaulting to Agg when running headless."""
+
     import matplotlib
 
     if backend:
@@ -99,6 +108,8 @@ def ensure_backend(backend: str | None, no_show: bool) -> None:
 
 
 def make_grid(extent: float, points: int, units: str) -> UniformGrid:
+    """Create a cubic UniformGrid centered at the origin."""
+
     if points < 3:
         raise ValueError("Grid requires at least three points per axis")
     axis = np.linspace(-extent, extent, points)
@@ -106,10 +117,14 @@ def make_grid(extent: float, points: int, units: str) -> UniformGrid:
 
 
 def pick_selector(arg: str) -> str | int:
+    """Convert the user's selector argument into an index or label."""
+
     return int(arg) if arg.isdigit() else arg
 
 
-def element_color(symbol: str) -> str:
+def element_color(symbol: str) -> str | tuple[float, float, float]:
+    """Return a Matplotlib-compatible color for the requested element."""
+
     base = ELEMENT_COLORS.get(symbol.capitalize())
     if base:
         return base
@@ -124,16 +139,24 @@ def element_color(symbol: str) -> str:
 
 
 def plot_orbital(
-    result,
+    result: DysonBuildResult,
     units: str,
     iso_fraction: float,
     title: str | None,
     show_atoms: bool = True,
 ):
-    from matplotlib import pyplot as plt
-    from skimage.measure import marching_cubes
+    """Render an isosurface plot for a sampled Dyson orbital."""
 
-    grid = result.grid if units == "bohr" else result.grid.to_unit("angstrom")
+    from matplotlib import pyplot as plt
+
+    try:
+        from skimage.measure import marching_cubes
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "scikit-image is required for marching cubes visualization; install via 'pip install scikit-image'"
+        ) from exc
+
+    grid = result.grid if result.grid.unit == units else result.grid.to_unit(units)
     psi = result.psi
 
     abs_max = float(np.max(np.abs(psi)))
@@ -217,6 +240,8 @@ def plot_orbital(
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Entry point for the command-line Dyson orbital visualizer."""
+
     args = parse_args(argv)
     ensure_backend(args.backend, args.no_show)
 
