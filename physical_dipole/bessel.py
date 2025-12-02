@@ -1,12 +1,14 @@
-from __future__ import annotations
-
 """Utility to evaluate spherical Bessel functions for fractional order."""
+
+from __future__ import annotations
 
 import numpy as np
 from scipy.special import jv, yv
 
 
 def spherical_bessel_general_order(order: float, kr: np.ndarray) -> np.ndarray:
+    """Return ``j_order(kr)`` allowing for fractional ``order`` values."""
+
     kr = np.asarray(kr, dtype=float)
     kr_safe = np.maximum(kr, 1.0e-12)
     nu = order + 0.5

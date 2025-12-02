@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Assemble physical dipole continuum wavefunctions on Cartesian grids."""
+
+from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
@@ -18,6 +18,8 @@ from .radial import radial_function
 
 @dataclass(frozen=True)
 class PhysicalDipoleParameters:
+    """Numerical configuration for constructing physical dipole continua."""
+
     dipole_strength: float
     half_bond_length_bohr: float
     l_max: int = 20
@@ -31,6 +33,8 @@ class PhysicalDipoleParameters:
 
 
 def rotation_matrix_to_align_with_z(axis: np.ndarray) -> np.ndarray:
+    """Return a rotation matrix that maps ``axis`` onto the +Z direction."""
+
     axis_norm = np.linalg.norm(axis)
     if axis_norm < 1.0e-12:
         return np.identity(3)
@@ -62,6 +66,8 @@ def prepare_body_frame(
     midpoint: np.ndarray,
     bond_axis: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Translate the grid to ``midpoint`` and rotate it so the bond axis is +Z."""
+
     coords = np.stack((X - midpoint[0], Y - midpoint[1], Z - midpoint[2]), axis=-1)
     R = rotation_matrix_to_align_with_z(bond_axis)
     rotated = coords @ R.T
@@ -74,6 +80,8 @@ def prolate_spheroidal_coordinates(
     Z: np.ndarray,
     half_bond_length: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Convert Cartesian coordinates into prolate spheroidal coordinates."""
+
     a = half_bond_length
     Z_A = a
     Z_B = -a
@@ -93,6 +101,8 @@ def build_single_mode_wavefunction(
     Y: np.ndarray,
     Z: np.ndarray,
 ) -> np.ndarray:
+    """Evaluate a single (m, n) body-frame continuum mode on ``(X, Y, Z)``."""
+
     if params.half_bond_length_bohr <= 0.0:
         raise ValueError("half_bond_length_bohr must be positive for physical dipole continuum")
 
@@ -158,10 +168,13 @@ def build_wavefunction_in_body_frame(
     Y_body: np.ndarray,
     Z_body: np.ndarray,
 ) -> np.ndarray:
+    """Convenience wrapper that assumes the grid is already in the body frame."""
+
     return build_single_mode_wavefunction(params, energy_au, X_body, Y_body, Z_body)
 
 
 def _energy_key(energy_au: float) -> float:
+    """Quantize the energy for cache lookups to avoid floating-point drift."""
     return float(np.round(energy_au, decimals=12))
 
 
@@ -170,6 +183,8 @@ def _angular_cache_key(
     energy_key: float,
     params: PhysicalDipoleParameters,
 ) -> Tuple[int, float, float, float, int]:
+    """Key angular solutions by quantum numbers and geometry settings."""
+
     return (
         m,
         energy_key,
@@ -187,6 +202,8 @@ def _evaluate_angular_mode_at_direction(
     eigvecs: np.ndarray,
     ell_vals: np.ndarray,
 ) -> complex:
+    """Evaluate an angular eigenmode along the emission direction."""
+
     m_abs = abs(m)
     P_basis = np.array([lpmv(m_abs, ell, eta_dir) for ell in ell_vals], dtype=float)
     coeff = float(np.dot(P_basis, eigvecs[:, n_mode]))
@@ -211,6 +228,7 @@ def build_directional_wavefunction(
     max_modes_per_m: int | None = None,
     max_m: int | None = None,
 ) -> np.ndarray:
+    """Assemble the sum over ``m``/mode contributions for a specific direction."""
     if energy_au <= 0.0:
         return np.zeros_like(X_body, dtype=np.complex128)
 

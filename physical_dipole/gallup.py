@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Gallup power-series solution for the m=0 physical dipole radial equation."""
+
+from __future__ import annotations
 
 import numpy as np
 
@@ -48,6 +48,8 @@ _HIGH_D_DATA = np.array(
 
 
 def get_gallup_normalization_a0(dipole_strength: float, c: float) -> float:
+    """Gallup's fitted short-range normalization ``a0`` for ``m=0`` states."""
+
     if dipole_strength <= 0.32:
         data = _LOW_D_DATA
         if dipole_strength <= data[0, 0]:
@@ -84,6 +86,8 @@ def solve_radial_m0_gallup_method(
     max_terms: int = 50,
     use_gallup_a0: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Return Gallup's power-series radial solution and raw coefficients."""
+
     if use_gallup_a0 and dipole_strength is not None:
         a0 = get_gallup_normalization_a0(dipole_strength, c)
     else:
@@ -132,6 +136,8 @@ def solve_radial_m0_with_asymptotic_matching(
     xi_match: float = 2.5,
     use_gallup_a0: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, float | complex, float]:
+    """Extend the Gallup series with asymptotic matching past ``xi_match``."""
+
     xi_vals = np.asarray(xi_vals)
     R_gallup, coeffs = solve_radial_m0_gallup_method(
         c,

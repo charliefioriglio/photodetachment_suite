@@ -28,6 +28,12 @@ def calculate_physical_dipole_cross_sections(
     k_parallel_lab: np.ndarray | None = None,
     k_perpendicular_lab: Sequence[np.ndarray] | None = None,
 ) -> "CrossSectionResult":
+    """Convenience wrapper for ``calculate_total_cross_sections``.
+
+    The helper simply injects ``continuum="physical_dipole"`` and ensures the
+    required ``dipole_strength`` is forwarded as part of ``continuum_options``.
+    """
+
     from ..cross_sections import calculate_total_cross_sections
     options = dict(continuum_options or {})
     options.setdefault("dipole_strength", dipole_strength)

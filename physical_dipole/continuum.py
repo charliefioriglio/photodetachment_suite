@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Factory for physical dipole continuum functions."""
+
+from __future__ import annotations
 
 import functools
 from typing import Any, Mapping
@@ -16,6 +16,8 @@ from .wavefunction import (
 
 
 def _extract_geometry(metadata: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, float]:
+    """Return midpoint, bond axis, and half-length derived from metadata."""
+
     centers = np.asarray(metadata.get("atom_centers_bohr"), dtype=float)
     if centers.ndim != 2 or centers.shape[1] != 3:
         raise ValueError("physical_dipole continuum requires atomic centers metadata")

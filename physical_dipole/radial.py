@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Evaluate the radial part of the physical dipole continuum wavefunction."""
+
+from __future__ import annotations
 
 import numpy as np
 
@@ -17,6 +17,8 @@ def radial_function(
     l_max: int = 20,
     max_terms: int = 50,
 ) -> np.ndarray:
+    """Evaluate the physical dipole radial basis for arbitrary ``m``."""
+
     xi = np.asarray(xi_vals)
 
     if Alm == 0.0 and m == 0:

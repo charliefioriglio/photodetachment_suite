@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Solve for the radial parameter ``v`` in the physical dipole expansion."""
+
+from __future__ import annotations
 
 import math
 from typing import Callable, Iterable, List

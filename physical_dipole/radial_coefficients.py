@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Compute Leaver-series coefficients for the physical dipole radial solution."""
+
+from __future__ import annotations
 
 import numpy as np
 
