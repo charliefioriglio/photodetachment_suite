@@ -1,9 +1,9 @@
-"""Comprehensive CN Dyson-orbital smoke test.
+"""Comprehensive CN Dyson-orbital test.
 
 This script showcases the major public entry points in ``photodetachment_suite``
 using the analytic CN Dyson orbital supplied in ``CN_do.py``. The underlying
 Gaussian coefficients originate from the ezDyson reference implementation
-included in ``ezSuite/ezDyson_2021/ezdyson_code``; this demo illustrates how the
+included in ``ezDyson_2021/ezdyson_code``; this demo illustrates how the
 rewritten toolkit wraps those legacy assets into a modern, testable workflow.
 """
 
