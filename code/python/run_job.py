@@ -1,0 +1,212 @@
+import json
+import argparse
+import subprocess
+import os
+import sys
+
+def run_command(cmd, cwd=None):
+    """Executes a shell command and checks for errors."""
+    print(f"Running: {' '.join(cmd)}")
+    try:
+        subprocess.check_call(cmd, cwd=cwd)
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}")
+        sys.exit(1)
+
+def main():
+    parser = argparse.ArgumentParser(description="Unified Driver for Dyson Orbital & Beta Calculations")
+    parser.add_argument("config_file", help="Path to JSON configuration file")
+    args = parser.parse_args()
+
+    # 1. Parse JSON Configuration
+    with open(args.config_file, 'r') as f:
+        config = json.load(f)
+
+    qchem_out =config.get("qchem_output")
+    if not qchem_out or not os.path.exists(qchem_out):
+        print(f"Error: Q-Chem output file '{qchem_out}' not found.")
+        sys.exit(1)
+
+    # Global settings
+    project_root = os.getcwd() 
+    # specific paths to scripts/executables
+    dyson_io_script = os.path.join(project_root, "src/python/dyson_io.py")
+    beta_gen_exe = os.path.join(project_root, "beta_gen")
+    visualize_script = os.path.join(project_root, "src/python/visualize.py")
+    
+    # 2. Dyson Generation Step
+    dyson_cfg = config.get("dyson", {})
+    calc_cfg = config.get("calculation", {})
+    
+    # Check if calculation requires dyson generation args implicitly
+    do_calc = calc_cfg.get("do_calculation", False)
+    skip_beta = calc_cfg.get("skip_beta_gen", False)
+    
+    if dyson_cfg.get("do_generation", True):
+        print("\n=== Dyson Orbital Generation ===")
+        
+        cmd = ["python3", dyson_io_script, qchem_out]
+        
+        # Output Binary
+        bin_out = dyson_cfg.get("output_bin", "dyson.bin")
+        cmd.extend(["--output", bin_out])
+        
+        # Indices
+        indices = dyson_cfg.get("indices", []) # Expect list [0] or [2, 3]
+        if not indices:
+             # Check legacy single key
+             idx = dyson_cfg.get("dyson_index", None)
+             if idx is not None: indices = [idx]
+        
+        if len(indices) == 2:
+            cmd.extend(["--dyson-pair", str(indices[0]), str(indices[1])])
+        elif len(indices) == 1:
+            cmd.extend(["--dyson-index", str(indices[0])])
+        else:
+            if do_calc and len(indices) == 0:
+                 print("Error: Calculation requested but no Dyson indices provided.")
+                 sys.exit(1)
+            # Default to index 0 if generation only? Or complain.
+            # python script defaults to index 0 usually.
+        
+        # Grid Step
+        step = dyson_cfg.get("grid_step", 0.3)
+        cmd.extend(["--grid-step", str(step)])
+        
+        # Padding
+        padding = dyson_cfg.get("padding") # Default in dyson_io is 5.0
+        if padding is not None:
+             cmd.extend(["--padding", str(padding)])
+             
+        # Relative XS (Vibrational File)
+        vib_file = dyson_cfg.get("vib_file")
+        if vib_file:
+             if os.path.exists(vib_file):
+                 cmd.extend(["--vib-file", vib_file])
+             else:
+                 print(f"Warning: Vibrational file '{vib_file}' not found. Skipping relative XS.")
+        
+        # If calculation is enabled, we need to pass calculation-specific flags to dyson_io
+        # so it generates 'cpp_input.dat' properly.
+        if do_calc:
+            cmd.append("--xs") # Enable XS/Beta mode in input generation
+            
+            # IE
+            ie = calc_cfg.get("ie")
+            if ie is not None:
+                cmd.extend(["--ie", str(ie)])
+            
+            # L-Max
+            l_max = calc_cfg.get("l_max", 3)
+            cmd.extend(["--lmax", str(l_max)])
+            
+            # Model Args
+            model = calc_cfg.get("model", "point_dipole").lower()
+            
+            if model == "point_dipole" or model == "physical_dipole":
+                 D_list = calc_cfg.get("dipole_list")
+                 if D_list:
+                     cmd.append("--point-dipole-list")
+                     cmd.extend([str(d) for d in D_list])
+                 else:
+                     D = calc_cfg.get("dipole", 0.0)
+                     cmd.extend(["--point-dipole", str(D)])
+                     
+                 if model == "physical_dipole":
+                     a = calc_cfg.get("dipole_length", 0.0)
+                     cmd.extend(["--dipole-length", str(a)])
+            
+            # e-Range logic for dyson_io (writes energy grid to input file)
+            energies = calc_cfg.get("energies", [])
+            if energies:
+                # dyson_io accepts --e-range MIN MAX PTS
+                # We need to construct a range that encompasses the requested energies
+                # used by beta_gen, even though beta_gen might override exact energies.
+                # Just nice to consistency.
+                if len(energies) > 0:
+                    min_e = min(energies)
+                    max_e = max(energies)
+                    # Force at least 2 points if single energy
+                    if len(energies) == 1: max_e += 0.1
+                    
+                    cmd.extend(["--e-range", str(min_e), str(max_e), str(len(energies))])
+            
+            if skip_beta:
+                 out_csv = calc_cfg.get("output_csv")
+                 if out_csv:
+                     cmd.extend(["--xs-out", out_csv])
+
+        run_command(cmd)
+
+    # 3. Calculation Step (Beta / CSS)
+    # Check if we should skip beta_gen (e.g. if we only wanted Relative XS from dyson_io)
+    skip_beta = calc_cfg.get("skip_beta_gen", False)
+    
+    if do_calc and not skip_beta:
+        print("\n=== Beta/Cross Section Calculation ===")
+        
+        # Check for cpp_input.dat
+        if not os.path.exists("cpp_input.dat"):
+            print("Error: 'cpp_input.dat' not found. Ensure Dyson generation step ran successfully.")
+            sys.exit(1)
+            
+        csv_out = calc_cfg.get("output_csv", "results.csv")
+        
+        calc_cmd = [beta_gen_exe, "cpp_input.dat", csv_out]
+        
+        # Energies
+        energies = calc_cfg.get("energies", [])
+        if energies:
+            calc_cmd.append("--energies")
+            calc_cmd.extend([str(e) for e in energies])
+            
+        # Points
+        pts = calc_cfg.get("points", 150)
+        calc_cmd.extend(["--points", str(pts)])
+        
+        # Model
+        if model == "pwe":
+            calc_cmd.append("--pwe")
+        elif model == "point_dipole":
+            D = calc_cfg.get("dipole", 0.0)
+            calc_cmd.extend(["--point-dipole", str(D)])
+            
+        # L-Max (override)
+        l_max = calc_cfg.get("l_max")
+        if l_max:
+             calc_cmd.extend(["--lmax", str(l_max)])
+             
+        run_command(calc_cmd)
+        
+    # 4. Visualization Step
+    vis_cfg = config.get("visualization", {})
+    if vis_cfg.get("do_plot", False):
+        print("\n=== Visualization ===")
+        
+        bin_file = dyson_cfg.get("output_bin", "dyson.bin")
+        if not os.path.exists(bin_file):
+             print(f"Error: Binary file '{bin_file}' not found.")
+             sys.exit(1)
+             
+        vis_cmd = ["python3", visualize_script, bin_file]
+        
+        iso = vis_cfg.get("isovalue", 0.02)
+        vis_cmd.extend(["--isovalue", str(iso)])
+        
+        axis = vis_cfg.get("view_axis")
+        if axis is not None:
+             vis_cmd.append("--slice")
+             vis_cmd.extend(["--axis", str(axis)])
+             
+        # Save Output
+        save_path = vis_cfg.get("output_image")
+        if save_path:
+             vis_cmd.extend(["--save", save_path])
+             print(f"Generating visualization to {save_path}...")
+        else:
+             print("Launching visualization window...")
+        
+        run_command(vis_cmd)
+
+if __name__ == "__main__":
+    main()

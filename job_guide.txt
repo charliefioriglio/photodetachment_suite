@@ -1,0 +1,133 @@
+
+Unified Photodetachment Job Workflow Guide
+=========================================
+
+This guide details how to use the `run_job.py` driver to execute complex photodetachment calculations using a single JSON configuration file.
+
+1. Quick Start
+--------------
+To run a job, simply execute:
+   $ python3 src/python/run_job.py job.json
+
+Where `job.json` is your configuration file.
+
+2. Job Configuration Structure
+-----------------------------
+The JSON file is divided into three sections:
+- `qchem_output`: Path to the source Q-Chem file.
+- `dyson`: Parameters for generating the Dyson orbital grid.
+- `calculation`: Parameters for the physics calculation (Beta, Cross Section).
+- `visualization`: Parameters for plotting the results.
+
+3. Detailed Configuration Options
+--------------------------------
+
+### Root
+| Key            | Type   | Description                                      | Example |
+|----------------|--------|--------------------------------------------------|---------|
+| `qchem_output` | String | Path to the Q-Chem (.out) file with Dyson print. | "cuo.out" |
+
+### Section: `dyson`
+Controls the extraction of the Dyson orbital and grid generation.
+
+| Key             | Type     | Description                                                                 | Example           |
+|-----------------|----------|-----------------------------------------------------------------------------|-------------------|
+| `do_generation` | Boolean  | If true, runs the generation step.                                          | true              |
+| `indices`       | Int List | Indices of Dyson orbitals. Use a pair `[L, R]` for products.                | [2, 3]            |
+| `grid_step`     | Float    | Grid spacing in Bohr. Smaller = finer grid.                                 | 0.3               |
+| `padding`       | Float    | Padding around molecule in Bohr. Increase for improved low-energy accuracy. | 20.0              |
+| `output_bin`    | String   | Filename for the generated binary grid file.                                | "dyson.bin"       |
+| `vib_file`      | String   | (Optional) Path to vibrational spectrum file for relative cross sections.   | "vib.txt"         |
+
+### Section: `calculation`
+Controls the scattering calculation.
+
+| Key              | Type     | Description                                                                                                    | Example            |
+|------------------|----------|----------------------------------------------------------------------------------------------------------------|--------------------|
+| `do_calculation` | Boolean  | If true, runs the calculation step.                                                                            | true               |
+| `type`           | String   | "beta" (calculates Beta & Sigma) or "cross_section" (synonym currently).                                    | "beta"             |
+| `model`          | String   | Continuum Model: "point_dipole", "physical_dipole", "pwe", or "plane_wave".    | "point_dipole"     |
+| `dipole_length`  | Float    | Dipole length 'a' (a.u.). Required if model is "physical_dipole".              | 0.1                |
+| `ie`             | Float    | Ionization Energy (eV). Required for eKE calculations.                                                         | 1.778              |
+| `energies`       | List     | List of Electron Kinetic Energies (eV) to calculate.                                                           | [0.1, 0.5, 1.0]    |
+| `l_max`          | Int      | Max Angular Momentum for expansion. Use 4-6 for Point Dipole.                                                  | 4                  |
+| `dipole`         | Float    | Dipole moment (a.u.). Used only if model is "point_dipole".                                                    | 0.6                |
+| `points`         | Int      | Number of angular grid points for averaging. 150 (default) uses hardcoded grid. Other values trigger Repulsion grid. | 150                |
+| `output_csv`     | String   | Filename for results.                                                                                          | "results.csv"      |
+
+*Note on Models*:
+| `pwe`: Uses analytic Clebsch-Gordan averaging. Fast. D=0 equivalent.
+| `plane_wave`: Uses numeric grid averaging (ezDyson algorithm).
+| `point_dipole`: Uses numeric grid averaging with Point Dipole continuum functions.
+| `physical_dipole`: Uses numeric grid with Physical Finite Dipole functions (requires `dipole_length`).
+
+### Section: `visualization`
+Controls the plotting of the Dyson orbital.
+
+| Key            | Type    | Description                                                 | Example        |
+|----------------|---------|-------------------------------------------------------------|----------------|
+| `do_plot`      | Boolean | If true, runs visualization.                                | true           |
+| `isovalue`     | Float   | Isosurface threshold.                                       | 0.02           |
+| `view_axis`    | Int     | Optional. If set (0,1,2), plots a 2D slice instead of 3D.   | 2              |
+| `output_image` | String  | Optional. If set, saves plot to file instead of display.    | "orbital.png"  |
+
+4. Complete Example (job.json)
+------------------------------
+```json
+{
+  "qchem_output": "data/CuO_augccPVDZPP_dyson.out",
+  "dyson": {
+    "do_generation": true,
+    "indices": [2, 3],
+    "grid_step": 0.4,
+    "padding": 20.0,
+    "output_bin": "cuo.bin"
+  },
+  "calculation": {
+    "do_calculation": true,
+    "type": "beta",
+    "model": "point_dipole",
+    "dipole": 0.63,
+    "l_max": 5,
+    "points": 300,
+    "ie": 1.778,
+    "energies": [0.01, 0.1, 0.5, 1.0, 2.0],
+    "output_csv": "cuo_beta_pd.csv"
+  },
+  "visualization": {
+    "do_plot": true,
+    "isovalue": 0.015,
+    "output_image": "cuo_orbital.png"
+  }
+}
+```
+
+### Physical Dipole Example
+```json
+{
+  "qchem_output": "data/CuO.out",
+  "dyson": { "do_generation": true, "indices": [0], "grid_step": 0.3, "padding": 20.0 },
+  "calculation": {
+    "do_calculation": true,
+    "type": "cross_section",
+    "model": "physical_dipole",
+    "dipole": 2.5,
+    "dipole_length": 1.0,
+    "ie": 1.5,
+    "energies": [0.1, 0.5, 1.0, 2.0],
+    "output_csv": "results_phys.csv"
+  }
+}
+```
+
+5. Relative Cross Sections
+--------------------------
+To calculate relative cross sections including vibrational channels:
+1.  Create `vib_data.txt`:
+    ```
+    1.778  0.8
+    1.850  0.2
+    ```
+2.  Add `"vib_file": "vib_data.txt"` to the `dyson` section.
+3.  The calculation will output `xs_relative.csv` in addition to the main results.
+
