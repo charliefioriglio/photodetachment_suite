@@ -36,10 +36,10 @@ This produces `dyson_gen` and `beta_gen` in the root directory.
 
 ## Usage
 
-The primary workflow is driven by `src/python/run_job.py` using a JSON config file.
+The primary workflow is driven by `code/python/run_job.py` using a JSON config file.
 
 ```bash
-python3 src/python/run_job.py job.json
+python3 code/python/run_job.py job.json
 ```
 
 ### Example Configuration (`job.json`)
