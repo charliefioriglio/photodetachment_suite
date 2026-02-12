@@ -7,8 +7,8 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 *   **Unified Workflow**: A single JSON configuration file controls the entire pipeline: Dyson orbital extraction, grid generation, physics calculation, and visualization.
 *   **Multiple Continuum Models**:
     *   **Plane Wave Expansion (PWE)**: Fast, analytic approach for $D \approx 0$.
-    *   **Point Dipole**: Exact solution for the electron-dipole interaction ($1/r^2$ potential).
-    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths ($D > D_{crit} = 1.279$) without collapse.
+    *   **Point Dipole**: Exact solution for the electron-dipole interaction.
+    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths.
 *   **Vibrational Resolution**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
 *   **Visualization**: Built-in tools for plotting Dyson orbitals and cross-section results.
 
