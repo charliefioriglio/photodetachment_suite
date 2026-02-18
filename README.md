@@ -6,16 +6,18 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 
 *   **Unified Workflow**: A single JSON configuration file controls the entire pipeline: Dyson orbital extraction, grid generation, physics calculation, and visualization.
 *   **Multiple Continuum Models**:
-    *   **Plane Wave Expansion (PWE)**: Fast, analytic approach for $D \approx 0$.
-    *   **Point Dipole**: Exact solution for the electron-dipole interaction.
-    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths.
+    *   **Plane Wave Expansion (PWE)**: Fast analytic approach for $D \approx 0$, or rigorous numeric averaging for general cases.
+    *   **Point Dipole**: Exact solution for the electron-dipole interaction ($1/r^2$ potential). Supports both analytic and numeric averaging.
+    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths ($D > D_{crit} = 1.279$) without collapse.
+*   **Numeric Averaging**: Explicit orientation averaging on a Lebedev grid is now supported for all models, providing higher accuracy for anisotropic systems.
 *   **Vibrational Resolution**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
 *   **Visualization**: Built-in tools for plotting Dyson orbitals and cross-section results.
+*   **Documentation**: See `job_guide.txt` for a comprehensive step-by-step tutorial and configuration reference.
 
 ## Directory Structure
 
-*   `code/cxx/`: Core physics engine (C++17). Handles computationally intensive grid integration and partial wave expansions.
-*   `code/python/`: Driver scripts and I/O handlers. `run_job.py` is the main entry point.
+*   `src/cxx/`: Core physics engine (C++17). Handles computationally intensive grid integration and partial wave expansions.
+*   `src/python/`: Driver scripts and I/O handlers. `run_job.py` is the main entry point.
 *   `beta_gen`: Compiled binary for main calculations.
 *   `dyson_gen`: Compiled binary for Dyson generation and cross-section sweeps.
 

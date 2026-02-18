@@ -4,12 +4,28 @@ Unified Photodetachment Job Workflow Guide
 
 This guide details how to use the `run_job.py` driver to execute complex photodetachment calculations using a single JSON configuration file.
 
-1. Quick Start
---------------
-To run a job, simply execute:
-   $ python3 src/python/run_job.py job.json
+1. Step-by-Step Job Execution
+-----------------------------
+To run a new calculation from scratch:
 
-Where `job.json` is your configuration file.
+**Step 1: Prepare Input**
+   - Ensure you have a Q-Chem output file (`.out`) with Dyson orbitals printed.
+   - Place it in your project directory (e.g., `data/CN.out`).
+
+**Step 2: Create Configuration**
+   - Create a new file (e.g., `job.json`) with your parameters.
+   - Use the templates below or copy an existing json file.
+
+**Step 3: Run the Job**
+   - Execute the driver script:
+     ```bash
+     python3 src/python/run_job.py job.json
+     ```
+
+**Step 4: Analyze Results**
+   - Converting the Q-Chem output to a grid (Dyson generation) is done automatically if `do_generation` is true.
+   - Beta parameters and cross sections are saved to the CSV file specified in `output_csv`.
+   - If visualization was enabled, check the generated image file.
 
 2. Job Configuration Structure
 -----------------------------
@@ -42,24 +58,25 @@ Controls the extraction of the Dyson orbital and grid generation.
 ### Section: `calculation`
 Controls the scattering calculation.
 
-| Key              | Type     | Description                                                                                                    | Example            |
-|------------------|----------|----------------------------------------------------------------------------------------------------------------|--------------------|
-| `do_calculation` | Boolean  | If true, runs the calculation step.                                                                            | true               |
-| `type`           | String   | "beta" (calculates Beta & Sigma) or "cross_section" (synonym currently).                                    | "beta"             |
-| `model`          | String   | Continuum Model: "point_dipole", "physical_dipole", "pwe", or "plane_wave".    | "point_dipole"     |
-| `dipole_length`  | Float    | Dipole length 'a' (a.u.). Required if model is "physical_dipole".              | 0.1                |
-| `ie`             | Float    | Ionization Energy (eV). Required for eKE calculations.                                                         | 1.778              |
-| `energies`       | List     | List of Electron Kinetic Energies (eV) to calculate.                                                           | [0.1, 0.5, 1.0]    |
-| `l_max`          | Int      | Max Angular Momentum for expansion. Use 4-6 for Point Dipole.                                                  | 4                  |
-| `dipole`         | Float    | Dipole moment (a.u.). Used only if model is "point_dipole".                                                    | 0.6                |
-| `points`         | Int      | Number of angular grid points for averaging. 150 (default) uses hardcoded grid. Other values trigger Repulsion grid. | 150                |
-| `output_csv`     | String   | Filename for results.                                                                                          | "results.csv"      |
+| Key                 | Type     | Description                                                                                                    | Example            |
+|---------------------|----------|----------------------------------------------------------------------------------------------------------------|--------------------|
+| `do_calculation`    | Boolean  | If true, runs the calculation step.                                                                            | true               |
+| `type`              | String   | "beta" (calculates Beta & Sigma) or "cross_section" (synonym currently).                                    | "beta"             |
+| `model`             | String   | Continuum Model: `point_dipole`, `physical_dipole`, `pwe`.                                                     | "point_dipole"     |
+| `averaging`         | String   | (Optional) Set to "numeric" to force numerical grid integration for PWE/Point Dipole. Default is "analytic".   | "numeric"          |
+| `dipole_length`     | Float    | Dipole length 'a' (a.u.). **Required** if model is `physical_dipole`.                                          | 1.5                |
+| `ie`                | Float    | Ionization Energy (eV). Required for eKE calculations.                                                         | 3.977              |
+| `energies`          | List     | List of Electron Kinetic Energies (eV) to calculate.                                                           | [0.1, 0.5, 1.0]    |
+| `l_max`             | Int      | Max Angular Momentum for expansion. Use 4-5 for Point Dipole/Physical Dipole.                                  | 4                  |
+| `dipole`            | Float    | Dipole moment (a.u.). Used only if model is `point_dipole` or `physical_dipole`.                               | 0.6                |
+| `dipole_list`       | List     | (Optional) List of dipole moments to sweep over. Overrides `dipole`.                                           | [0.0, 0.2, 0.5]    |
+| `points`            | Int      | Number of angular grid points for averaging. 150 (default) uses hardcoded grid.                                | 150                |
+| `output_csv`        | String   | Filename for results. If `dipole_list` is used, filenames will be appended with `_D{dipole}`.                  | "results.csv"      |
 
 *Note on Models*:
-| `pwe`: Uses analytic Clebsch-Gordan averaging. Fast. D=0 equivalent.
-| `plane_wave`: Uses numeric grid averaging (ezDyson algorithm).
-| `point_dipole`: Uses numeric grid averaging with Point Dipole continuum functions.
-| `physical_dipole`: Uses numeric grid with Physical Finite Dipole functions (requires `dipole_length`).
+*   `pwe`: Plane Wave Expansion. Defaults to **Analytic Averaging** (fast, exact for D=0). Use `"averaging": "numeric"` to use numerical integration.
+*   `point_dipole`: Point Dipole Model. Defaults to **Analytic Averaging**. Use `"averaging": "numeric"` to use numerical integration.
+*   `physical_dipole`: Physical Finite Dipole Model. Always uses **Numeric Grid Averaging**. Requires `dipole_length`.
 
 ### Section: `visualization`
 Controls the plotting of the Dyson orbital.
@@ -71,63 +88,48 @@ Controls the plotting of the Dyson orbital.
 | `view_axis`    | Int     | Optional. If set (0,1,2), plots a 2D slice instead of 3D.   | 2              |
 | `output_image` | String  | Optional. If set, saves plot to file instead of display.    | "orbital.png"  |
 
-4. Complete Example (job.json)
-------------------------------
+4. Complete Examples
+--------------------
+
+### Example 1: Physical Dipole Verification
 ```json
 {
-  "qchem_output": "data/CuO_augccPVDZPP_dyson.out",
+  "qchem_output": "data/CN.out",
   "dyson": {
     "do_generation": true,
-    "indices": [2, 3],
-    "grid_step": 0.4,
+    "indices": [0, 1],
+    "grid_step": 0.3,
     "padding": 20.0,
-    "output_bin": "cuo.bin"
+    "output_bin": "cn_dyson.bin"
   },
   "calculation": {
     "do_calculation": true,
     "type": "beta",
-    "model": "point_dipole",
-    "dipole": 0.63,
-    "l_max": 5,
-    "points": 300,
-    "ie": 1.778,
-    "energies": [0.01, 0.1, 0.5, 1.0, 2.0],
-    "output_csv": "cuo_beta_pd.csv"
+    "model": "physical_dipole",
+    "dipole_list": [0.0, 0.2, 0.57],
+    "dipole_length": 1.5,
+    "ie": 3.977,
+    "energies": [0.05, 0.1, 0.2, 0.5],
+    "points": 50,
+    "output_csv": "cn_beta_phys.csv"
   },
-  "visualization": {
-    "do_plot": true,
-    "isovalue": 0.015,
-    "output_image": "cuo_orbital.png"
-  }
+  "visualization": { "do_plot": false }
 }
 ```
 
-### Physical Dipole Example
+### Example 2: Plane Wave Benchmark (Numeric vs Analytic)
 ```json
 {
   "qchem_output": "data/CuO.out",
-  "dyson": { "do_generation": true, "indices": [0], "grid_step": 0.3, "padding": 20.0 },
+  "dyson": { "do_generation": true, "indices": [0], "padding": 20.0 },
   "calculation": {
     "do_calculation": true,
-    "type": "cross_section",
-    "model": "physical_dipole",
-    "dipole": 2.5,
-    "dipole_length": 1.0,
-    "ie": 1.5,
-    "energies": [0.1, 0.5, 1.0, 2.0],
-    "output_csv": "results_phys.csv"
+    "type": "beta",
+    "model": "pwe",
+    "averaging": "numeric", 
+    "ie": 1.778,
+    "energies": [0.1, 0.5, 1.0],
+    "output_csv": "cuo_pwe_numeric.csv"
   }
 }
 ```
-
-5. Relative Cross Sections
---------------------------
-To calculate relative cross sections including vibrational channels:
-1.  Create `vib_data.txt`:
-    ```
-    1.778  0.8
-    1.850  0.2
-    ```
-2.  Add `"vib_file": "vib_data.txt"` to the `dyson` section.
-3.  The calculation will output `xs_relative.csv` in addition to the main results.
-
