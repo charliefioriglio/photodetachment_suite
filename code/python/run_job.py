@@ -150,33 +150,66 @@ def main():
             print("Error: 'cpp_input.dat' not found. Ensure Dyson generation step ran successfully.")
             sys.exit(1)
             
-        csv_out = calc_cfg.get("output_csv", "results.csv")
-        
-        calc_cmd = [beta_gen_exe, "cpp_input.dat", csv_out]
+        # Prepare Dipole List
+        dipole_list = calc_cfg.get("dipole_list")
+        if not dipole_list:
+            dipole_list = [calc_cfg.get("dipole", 0.0)]
+            
+        # Common Flags (energies, points, lmax)
+        flags = []
         
         # Energies
         energies = calc_cfg.get("energies", [])
         if energies:
-            calc_cmd.append("--energies")
-            calc_cmd.extend([str(e) for e in energies])
+            flags.append("--energies")
+            flags.extend([str(e) for e in energies])
             
         # Points
         pts = calc_cfg.get("points", 150)
-        calc_cmd.extend(["--points", str(pts)])
+        flags.extend(["--points", str(pts)])
         
-        # Model
-        if model == "pwe":
-            calc_cmd.append("--pwe")
-        elif model == "point_dipole":
-            D = calc_cfg.get("dipole", 0.0)
-            calc_cmd.extend(["--point-dipole", str(D)])
-            
         # L-Max (override)
         l_max = calc_cfg.get("l_max")
         if l_max:
-             calc_cmd.extend(["--lmax", str(l_max)])
+             flags.extend(["--lmax", str(l_max)])
              
-        run_command(calc_cmd)
+        # Numeric Averaging
+        use_numeric = calc_cfg.get("numeric_averaging", False)
+        if calc_cfg.get("averaging") == "numeric":
+            use_numeric = True
+            
+        if use_numeric:
+            flags.append("--numeric")
+
+        # Loop over dipoles
+        csv_out_base = calc_cfg.get("output_csv", "results.csv")
+        
+        for D in dipole_list:
+            # Command Structure: exe input output [flags]
+            current_cmd = [beta_gen_exe, "cpp_input.dat"]
+            
+            # Output Filename handling
+            if len(dipole_list) > 1:
+                base, ext = os.path.splitext(csv_out_base)
+                out_file = f"{base}_D{D}{ext}"
+            else:
+                out_file = csv_out_base
+                
+            current_cmd.append(out_file)
+            
+            # Add common flags
+            current_cmd.extend(flags)
+            
+            # Model Args
+            if model == "pwe":
+                current_cmd.append("--pwe")
+            elif model == "point_dipole":
+                current_cmd.extend(["--point-dipole", str(D)])
+            elif model == "physical_dipole":
+                a = calc_cfg.get("dipole_length", 0.0)
+                current_cmd.extend(["--physical-dipole", str(D), str(a)])
+                
+            run_command(current_cmd)
         
     # 4. Visualization Step
     vis_cfg = config.get("visualization", {})
