@@ -45,7 +45,8 @@ python3 code/python/run_job.py job.json
 ```
 
 ### Example Configuration (`job.json`)
-Remove all # from the file you run! Comments are not supported by .json files and are only for instructions here.
+**Remove all # from the file you run!**
+Comments are not supported by .json files and are only for instructions here.
 
 ```json
 {
