@@ -106,8 +106,8 @@ Comments are not supported by .json files and are only for instructions here.
   },
   "visualization": { "do_plot": true},
   "beta_plot": {
-    "do_plot": true,
-    "output_image": "cn_beta_plot.png",
+    "plot": true,
+    "output_image": "beta_plot.png",
     "show": true
   }
 }
