@@ -30,9 +30,9 @@ def main():
     # Global settings
     project_root = os.getcwd() 
     # specific paths to scripts/executables
-    dyson_io_script = os.path.join(project_root, "src/python/dyson_io.py")
+    dyson_io_script = os.path.join(project_root, "code/python/dyson_io.py")
     beta_gen_exe = os.path.join(project_root, "beta_gen")
-    visualize_script = os.path.join(project_root, "src/python/visualize.py")
+    visualize_script = os.path.join(project_root, "code/python/visualize.py")
     
     # 2. Dyson Generation Step
     dyson_cfg = config.get("dyson", {})
