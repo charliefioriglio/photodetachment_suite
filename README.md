@@ -79,7 +79,7 @@ Comments are not supported by .json files and are only for instructions here.
 **Real Test**
 ```json
 {
-  "qchem_output": "data/CN.out",
+  "qchem_output": "Test Dyson Orbitals/CN.out",
   "dyson": {
     "do_generation": true,
     "indices": [0, 1],
@@ -96,9 +96,9 @@ Comments are not supported by .json files and are only for instructions here.
     "energies": [0.05, 0.1, 0.2, 0.5],
     "l_max": 3,
     "points": 50,
-    "output_csv": "cn_beta_phys.csv"
+    "output_csv": "cn_beta.csv"
   },
-  "visualization": { "do_plot": true, "output_png": "cn_beta_phys.png" }
+  "visualization": { "do_plot": true}
 }
 ```
 For a comprehensive guide on all configuration options, see `job_guide.txt`.
