@@ -93,6 +93,15 @@ public:
         int n_mode, 
         const Solution& sol
     );
+
+    // Evaluate just the angular part S_{mn}(eta)
+    // eta = cos(theta)
+    double EvaluateAngular(
+        double eta,
+        int m,
+        int n_mode,
+        const Solution& sol
+    );
 };
 
 #endif

@@ -40,6 +40,40 @@ public:
         int l_max = 3
     );
 
+    static std::vector<BetaResult> CalculateBetaPWENumeric(
+        const Dyson& dyson_L,
+        const Dyson& dyson_R,
+        const UniformGrid& grid,
+        const std::vector<double>& photoelectron_energies_ev,
+        const AngleGrid& angle_grid,
+        int l_max = 3
+    );
+
+    static std::vector<BetaResult> CalculateBetaPointDipoleNumeric(
+        const Dyson& dyson_L,
+        const Dyson& dyson_R,
+        const UniformGrid& grid,
+        const std::vector<double>& photoelectron_energies_ev,
+        double dipole_strength,
+        const AngleGrid& angle_grid,
+        int l_max = 3
+    );
+
+    static std::vector<BetaResult> CalculateBetaPhysicalDipole(
+        const Dyson& dyson_L,
+        const Dyson& dyson_R,
+        const UniformGrid& grid,
+        const std::vector<double>& photoelectron_energies_ev, // Input is eKE directly for BetaGen?
+        // Note: CrossSectionCalculator expects Photon Energies and IE. 
+        // BetaGen passes eKE directly. We can pass IE=0 and Energies=eKE.
+        double dipole_strength,
+        double dipole_length,
+        const std::vector<double>& dipole_axis,
+        const std::vector<double>& dipole_center,
+        const AngleGrid& angle_grid,
+        int l_max = 3
+    );
+
 private:
     static std::complex<double> ComputeNumericalMatrixElement(
         const Dyson& dyson,

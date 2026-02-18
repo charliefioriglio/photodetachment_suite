@@ -676,3 +676,25 @@ std::complex<double> PhysicalDipole::EvaluateMode(
     
     return S * T * Phi;
 }
+
+double PhysicalDipole::EvaluateAngular(double eta, int m, int n_mode, const Solution& sol) {
+    if (n_mode < 0 || n_mode >= (int)sol.l_vals.size()) return 0.0;
+    
+    // Bounds check
+    if (eta > 1.0) eta = 1.0;
+    if (eta < -1.0) eta = -1.0;
+    
+    // Extract coeffs for this mode
+    std::vector<double> ang_coeffs(sol.l_vals.size());
+    for(size_t i=0; i<sol.l_vals.size(); ++i) {
+        ang_coeffs[i] = sol.ang_eigenvectors[i][n_mode];
+    }
+    
+    double T = PhysicalDipoleAngular::Evaluate(eta, m, ang_coeffs, sol.l_vals);
+    
+    if (m < 0) {
+        if (std::abs(m) % 2 != 0) T = -T;
+    }
+    
+    return T;
+}

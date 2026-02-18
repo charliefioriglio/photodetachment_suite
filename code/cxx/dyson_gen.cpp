@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
             if (vib_count > 0) {
                 // Relative XS Mode
                 RelativeXSResult res = CrossSectionCalculator::ComputeRelativeCrossSections(
-                    L, R, grid, energies, vib_states, l_max, d_val, use_point_dipole || explicit_list
+                    L, R, grid, energies, vib_states, l_max, d_val, use_point_dipole || explicit_list, args_dipole_length
                 );
                 
                 std::string fname = "xs_relative_D" + d_str + ".csv";

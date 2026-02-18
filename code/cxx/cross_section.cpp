@@ -798,24 +798,198 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
                 total_sum += sum_alpha;
                 
                  // DEBUG PRINT per mode
-
             }
         }
         
-
-        
-        // Prefactor
-        // sigma = (8 pi k E_ph / c) * sum |I|^2
         double prefactor = (8.0 * M_PI * k * E_ph_au) / C_SPEED_AU;
         
-        // Average over 3 polarizations? The formula has specific assumption.
-        // Total Cross Section usually sums over final states and averages initial?
-        // Initial state is randomly oriented? Or fixed?
-        // Code usually divides by 3 for isotropic average.
-        
-        double sigma = prefactor * total_sum / 3.0 * dyson_L.qchem_norm * dyson_R.qchem_norm * 2.0; 
-        results.push_back(sigma);
+        results.push_back(total_sum * prefactor / 3.0 * dyson_L.qchem_norm * dyson_R.qchem_norm * 2.0);
     }
     
     return results;
 }
+
+std::vector<std::vector<CrossSectionCalculator::DipoleMatrixElement>> CrossSectionCalculator::ComputePhysicalDipoleMatrixElements(
+    const Dyson& dyson_L,
+    const Dyson& dyson_R,
+    const UniformGrid& grid,
+    const std::vector<double>& photon_energies_ev,
+    double ionization_energy_ev,
+    int l_max,
+    double dipole_magnitude,
+    double dipole_length,
+    const std::vector<double>& dipole_axis,
+    const std::vector<double>& dipole_center
+) {
+    std::vector<std::vector<DipoleMatrixElement>> all_matrix_elements;
+    all_matrix_elements.reserve(photon_energies_ev.size());
+    
+    // 1. Construct Rotation Matrix R to Local Frame (Dipole along Z)
+    std::vector<double> d_hat = dipole_axis;
+    double d_norm = std::sqrt(d_hat[0]*d_hat[0] + d_hat[1]*d_hat[1] + d_hat[2]*d_hat[2]);
+    if (d_norm > 1e-9) {
+        d_hat[0] /= d_norm; d_hat[1] /= d_norm; d_hat[2] /= d_norm;
+    } else {
+        d_hat = {0,0,1};
+    }
+    
+    double zp[3] = {d_hat[0], d_hat[1], d_hat[2]};
+    double tmp[3] = {1,0,0};
+    if (std::abs(zp[0]) > 0.9) { tmp[0]=0; tmp[1]=1; tmp[2]=0; }
+    
+    double yp_raw[3];
+    yp_raw[0] = zp[1]*tmp[2] - zp[2]*tmp[1];
+    yp_raw[1] = zp[2]*tmp[0] - zp[0]*tmp[2];
+    yp_raw[2] = zp[0]*tmp[1] - zp[1]*tmp[0];
+    double yp_norm = std::sqrt(yp_raw[0]*yp_raw[0] + yp_raw[1]*yp_raw[1] + yp_raw[2]*yp_raw[2]);
+    double yp[3] = {yp_raw[0]/yp_norm, yp_raw[1]/yp_norm, yp_raw[2]/yp_norm};
+    
+    double xp[3];
+    xp[0] = yp[1]*zp[2] - yp[2]*zp[1];
+    xp[1] = yp[2]*zp[0] - yp[0]*zp[2];
+    xp[2] = yp[0]*zp[1] - yp[1]*zp[0];
+    
+    double R_mat[3][3] = {
+        {xp[0], xp[1], xp[2]},
+        {yp[0], yp[1], yp[2]},
+        {zp[0], zp[1], zp[2]}
+    };
+    
+    // 2. Pre-compute Dyson Values
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    
+    double x0 = grid.xmin; double y0 = grid.ymin; double z0 = grid.zmin;
+    double step = grid.dx;
+    double dV = step * step * step;
+    
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                 double x = x0 + ix * step;
+                 double y = y0 + iy * step;
+                 double z = z0 + iz * step;
+                 int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                 phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                 phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
+    
+    PhysicalDipole phys(dipole_length, 0.5 * dipole_magnitude);
+    
+    // 3. Loop Energies
+    for (size_t e = 0; e < photon_energies_ev.size(); ++e) {
+        std::vector<DipoleMatrixElement> current_energy_elements;
+        
+        double E_ph_ev = photon_energies_ev[e];
+        double E_ph_au = E_ph_ev * EV_TO_HARTREE;
+        double IE_au = ionization_energy_ev * EV_TO_HARTREE;
+        double eKE = E_ph_au - IE_au;
+        
+        if (eKE <= 0) {
+            all_matrix_elements.push_back(current_energy_elements);
+            continue;
+        }
+        
+        // Loop m
+        for (int m = -l_max; m <= l_max; ++m) {
+            auto sol = phys.Solve(eKE, m, l_max);
+            int n_modes = sol.radial_solutions.size();
+            
+            // For each mode n
+            for (int n = 0; n < n_modes; ++n) {
+                // Compute Integral Vector I
+                double IL_real[3] = {0,0,0}; double IL_imag[3] = {0,0,0};
+                double IR_real[3] = {0,0,0}; double IR_imag[3] = {0,0,0};
+                
+                #pragma omp parallel for collapse(3) reduction(+:IL_real[:3], IL_imag[:3], IR_real[:3], IR_imag[:3])
+                for (int ix = 0; ix < grid.nx; ++ix) {
+                    for (int iy = 0; iy < grid.ny; ++iy) {
+                        for (int iz = 0; iz < grid.nz; ++iz) {
+                             int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                             double phi_L = phi_L_vals[idx];
+                             double phi_R = phi_R_vals[idx];
+                             if (std::abs(phi_L) < 1e-15 && std::abs(phi_R) < 1e-15) continue;
+                             
+                             double x = x0 + ix * step;
+                             double y = y0 + iy * step;
+                             double z = z0 + iz * step;
+                             
+                             // Global indices for dipole operator r
+                             double dip[3] = {x, y, z}; 
+                             
+                             // Local coords for wavefunction
+                             double xs = x - dipole_center[0];
+                             double ys = y - dipole_center[1];
+                             double zs = z - dipole_center[2];
+                             double x_loc = R_mat[0][0]*xs + R_mat[0][1]*ys + R_mat[0][2]*zs;
+                             double y_loc = R_mat[1][0]*xs + R_mat[1][1]*ys + R_mat[1][2]*zs;
+                             double z_loc = R_mat[2][0]*xs + R_mat[2][1]*ys + R_mat[2][2]*zs;
+                             
+                             std::complex<double> Psi = phys.EvaluateMode(x_loc, y_loc, z_loc, m, n, sol);
+                             std::complex<double> Psi_conj = std::conj(Psi);
+                             
+                             // Integration
+                             for(int a=0; a<3; ++a) {
+                                 std::complex<double> termL = phi_L * dip[a] * Psi_conj * dV;
+                                 std::complex<double> termR = phi_R * dip[a] * Psi_conj * dV;
+                                 
+                                 IL_real[a] += termL.real();
+                                 IL_imag[a] += termL.imag();
+                                 IR_real[a] += termR.real();
+                                 IR_imag[a] += termR.imag();
+                             }
+                        }
+                    }
+                }
+                
+                // Combine L and R (Geometric Mean Approximation for squared element?)
+                // C++ convention so far: we compute XS ~ Re(I_L* I_R).
+                // For Beta: we need the Amplitudes. 
+                // Amplitude A = I. 
+                // But we have Left and Right dyson orbitals.
+                // Usually for Beta we use the "Right" orbital or the averaged?
+                // Or we compute Cross Section (Sigma) correctly via L/R, but Beta is a ratio.
+                // Ratio should be insensitive to L/R scaling if shapes are similar.
+                // Let's use the Geometric Mean Amplitude: I_eff = sqrt(I_L * I_R)? No, complex.
+                // Let's use I_R for calculating the angular distribution shape, 
+                // or arithmetic mean?
+                // EzDyson uses complex averaging?
+                // Let's just use I_L for now? Or (I_L + I_R)/2 ?
+                // The previous code computes sigma ~ Re(I_L* I_R).
+                // If I_L ~ I_R, then I_eff ~ I_L.
+                // I will store the *average* vector: I = 0.5 * (I_L + I_R).
+                // This preserves linearity.
+                
+                std::complex<double> I_avg[3];
+                for(int a=0; a<3; ++a) {
+                    std::complex<double> vL(IL_real[a], IL_imag[a]);
+                    std::complex<double> vR(IR_real[a], IR_imag[a]);
+                    I_avg[a] = 0.5 * (vL + vR);
+                }
+                
+                DipoleMatrixElement elem;
+                elem.E_ph = E_ph_ev;
+                elem.m = m;
+                elem.n_mode = n;
+                if (n < (int)sol.radial_solutions.size()) {
+                    elem.nu = sol.radial_solutions[n].nu;
+                } else {
+                    elem.nu = 0.0;
+                }
+                elem.I_x = I_avg[0];
+                elem.I_y = I_avg[1];
+                elem.I_z = I_avg[2];
+                
+                current_energy_elements.push_back(elem);
+            }
+        }
+        all_matrix_elements.push_back(current_energy_elements);
+    }
+    
+    return all_matrix_elements;
+}
+
+

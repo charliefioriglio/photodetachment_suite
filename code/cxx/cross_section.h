@@ -5,6 +5,7 @@
 #include "grid.h"
 #include <vector>
 #include <string>
+#include <complex>
 
 struct VibState {
     double energy_bind;
@@ -66,6 +67,30 @@ public:
         double dipole_length,
         const std::vector<double>& dipole_axis = {0.0, 0.0, 1.0},
         const std::vector<double>& dipole_center = {0.0, 0.0, 0.0} // Global coordinates of dipole center
+    );
+
+    // For Beta Calculation: Return Matrix Elements in Body Frame
+    struct DipoleMatrixElement {
+        double E_ph;
+        int m;
+        int n_mode;
+        std::complex<double> nu;
+        std::complex<double> I_x;
+        std::complex<double> I_y;
+        std::complex<double> I_z;
+    };
+    
+    static std::vector<std::vector<DipoleMatrixElement>> ComputePhysicalDipoleMatrixElements(
+         const Dyson& dyson_L,
+         const Dyson& dyson_R,
+         const UniformGrid& grid,
+         const std::vector<double>& photon_energies_ev,
+         double ionization_energy_ev,
+         int l_max,
+         double dipole_magnitude,
+         double dipole_length,
+         const std::vector<double>& dipole_axis,
+         const std::vector<double>& dipole_center
     );
 
 private:

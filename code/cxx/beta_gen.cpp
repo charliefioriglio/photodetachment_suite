@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
     bool explicit_lmax = false;
     bool use_point_dipole = false;
     bool use_physical_dipole = false;
+    bool use_numeric_averaging = false;
     double dipole_strength = 0.0;
     double dipole_length = 0.0; // 'a' parameter for Physical Dipole
 
@@ -185,6 +186,8 @@ int main(int argc, char** argv) {
         std::string arg = argv[i];
         if (arg == "--pwe") {
             use_pwe = true;
+        } else if (arg == "--numeric") {
+            use_numeric_averaging = true;
         } else if (arg == "--points" && i + 1 < argc) {
              std::string points_str = argv[++i];
              try {
@@ -224,11 +227,20 @@ int main(int argc, char** argv) {
     }
 
     if (use_pwe) {
-        std::cout << "Calculating Beta parameters using Plane Wave Expansion (Analytic Averaging)..." << std::endl;
-        std::cout << "Using l_max = " << l_max << std::endl;
-        auto beta_results = BetaCalculator::CalculateBetaAnalytic(L, R, grid, beta_energies, l_max);
-        for(const auto& res : beta_results) {
-            final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+        if (use_numeric_averaging) {
+            std::cout << "Calculating Beta parameters using Plane Wave Expansion (Numeric Averaging)..." << std::endl;
+            std::cout << "Using l_max = " << l_max << std::endl;
+            auto beta_results = BetaCalculator::CalculateBetaPWENumeric(L, R, grid, beta_energies, angle_grid, l_max);
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
+        } else {
+            std::cout << "Calculating Beta parameters using Plane Wave Expansion (Analytic Averaging)..." << std::endl;
+            std::cout << "Using l_max = " << l_max << std::endl;
+            auto beta_results = BetaCalculator::CalculateBetaAnalytic(L, R, grid, beta_energies, l_max);
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
         }
     } else if (use_physical_dipole) {
         std::cout << "Calculating Cross Section using Physical Dipole Model (D=" << dipole_strength << ", a=" << dipole_length << ")..." << std::endl;
@@ -252,45 +264,37 @@ int main(int argc, char** argv) {
         }
 
 
-        // ComputePhysicalDipoleCrossSection returns vector<double> (Total Sigma only)
-        // Beta calculation requires parallel/perp components or full m-averaging not yet exposed in single function?
-        // Wait, CrossSectionCalculator::ComputePhysicalDipoleCrossSection returns only Sigma Total.
-        // It does NOT calculate Beta parameters (par/perp).
-        // For Verification of Cross Section, this is sufficient. 
-        // We will output 0 for beta/par/perp if not available, or just Sigma.
-        // The output CSV expects par, perp, beta.
+        // Compute Beta Parameters using Physical Dipole Model
+        std::cout << "Computing Beta Parameters..." << std::endl;
         
-        // We need to fetch Photon Energies. beta_energies are eKE.
-        // We need IE. Where is IE? 
-        // beta_gen doesn't take IE input? 
-        // NumEikr uses eKE directly.
-        // CrossSectionCalculator usually takes Photon Energies + IE.
-        // It converts Photon - IE -> eKE.
-        // Here we have eKE. So we can fake IE=0 and pass eKE as Photon Energy.
-        
-        CrossSectionCalculator calc;
-        auto sigma_results = calc.ComputePhysicalDipoleCrossSection(
-            L, R, grid, beta_energies, 0.0, l_max, dipole_strength, dipole_length, dipole_axis, dipole_center
+        auto beta_results = BetaCalculator::CalculateBetaPhysicalDipole(
+            L, R, grid, beta_energies,
+            dipole_strength, dipole_length,
+            dipole_axis, dipole_center,
+            angle_grid, l_max
         );
-        
-        for(size_t k=0; k<beta_energies.size(); ++k) {
-             // We don't have par/perp/beta, just Total.
-             // We can put Total in 'par' column or just make a special output?
-             // The output format is rigid: eKE,Par,Perp,Beta.
-             // We can put Sigma in Par, 0 in Perp, 0 in Beta?
-             // Or better: Sigma in 'par' (Total) and others 0.
-             // This is a hack for verification.
-             final_results.push_back({beta_energies[k], sigma_results[k], 0.0, 0.0});
-        }
-        
-    } else if (use_point_dipole) {
-        std::cout << "Calculating Beta parameters using Point Dipole Model (D=" << dipole_strength << ")..." << std::endl;
-        std::cout << "Using l_max = " << l_max << std::endl;
-        
-        auto beta_results = BetaCalculator::CalculateBetaPointDipole(L, R, grid, beta_energies, dipole_strength, l_max);
         
         for(const auto& res : beta_results) {
             final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+        }
+        
+    } else if (use_point_dipole) {
+        if (use_numeric_averaging) {
+            std::cout << "Calculating Beta parameters using Point Dipole Model (Numeric Averaging, D=" << dipole_strength << ")..." << std::endl;
+            std::cout << "Using l_max = " << l_max << std::endl;
+            auto beta_results = BetaCalculator::CalculateBetaPointDipoleNumeric(L, R, grid, beta_energies, dipole_strength, angle_grid, l_max);
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
+        } else {
+            std::cout << "Calculating Beta parameters using Point Dipole Model (D=" << dipole_strength << ")..." << std::endl;
+            std::cout << "Using l_max = " << l_max << std::endl;
+            
+            auto beta_results = BetaCalculator::CalculateBetaPointDipole(L, R, grid, beta_energies, dipole_strength, l_max);
+            
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
         }
     } else {
         // Use NumEikr for optimized calculation (ezDyson logic)
