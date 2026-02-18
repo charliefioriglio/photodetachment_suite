@@ -9,8 +9,8 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
     *   **Plane Wave Expansion (PWE)**: Fast analytic approach for $D \approx 0$, or rigorous numeric averaging for general cases.
     *   **Point Dipole**: Exact solution for the electron-dipole interaction ($1/r^2$ potential). Supports both analytic and numeric averaging.
     *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths ($D > D_{crit}) without collapse.
-*   **Numeric Averaging**: Explicit orientation averaging on a Lebedev grid is now supported for all models, providing higher accuracy for anisotropic systems.
-*   **Vibrational Resolution**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
+*   **Averaging Options**: Program supports analytic averaging using Wigner-D matricies where applicable. For other cases, program supports numeric averaging witha  specifiable number of Euler Angles.
+*   **Relative Vibrational Channel Cross Sections**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
 *   **Visualization**: Built-in tools for plotting Dyson orbitals and cross-section results.
 *   **Documentation**: See `job_guide.txt` for a comprehensive step-by-step tutorial and configuration reference.
 
@@ -26,7 +26,7 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 ### Prerequisites
 *   **C++ Compiler**: Must support C++17 (e.g., `g++` 9+, `clang++`).
 *   **Python 3**: With `numpy`, `scipy`, `matplotlib`, and `pandas`.
-*   **OpenMP**: Recommended for parallelizing grid integrations.
+*   **OpenMP**: Recommended for parallelizing grid integrations. Code will run without it.
 
 ### Building
 The project uses a standard `Makefile`. To build the binaries:
@@ -75,16 +75,3 @@ python3 code/python/run_job.py job.json
 
 ```
 For a comprehensive guide on all configuration options, see `job_guide.txt`.
-
-## Method Details
-
-### Physical Dipole Model
-For strong dipoles, the point dipole model exhibits a "fall-to-center" singularity. This code implements a **Finite Dipole** model where the potential is non-singular:
-$$ V(\mathbf{r}) = -D \left( \frac{1}{|\mathbf{r} - \mathbf{a}|} - \frac{1}{|\mathbf{r} + \mathbf{a}|} \right) \frac{1}{2a} $$
-(where $D$ is the dipole moment and separation is $2a$).
-
-The radial equation is solved using:
-1.  **Spherical Bessel Expansion** (Complex Order $\nu$) for high-energy/general cases.
-2.  **Gallup Power Series** for near-threshold $m=0$ precision.
-
-This allows for smooth evolution of cross-section features across the critical dipole threshold.
