@@ -16,8 +16,8 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 
 ## Directory Structure
 
-*   `src/cxx/`: Core physics engine (C++17). Handles computationally intensive grid integration and partial wave expansions.
-*   `src/python/`: Driver scripts and I/O handlers. `run_job.py` is the main entry point.
+*   `code/cxx/`: Core physics engine (C++17). Handles computationally intensive grid integration and partial wave expansions.
+*   `code/python/`: Driver scripts and I/O handlers. `run_job.py` is the main entry point.
 *   `beta_gen`: Compiled binary for main calculations.
 *   `dyson_gen`: Compiled binary for Dyson generation and cross-section sweeps.
 
