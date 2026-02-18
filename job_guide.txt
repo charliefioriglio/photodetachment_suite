@@ -88,6 +88,17 @@ Controls the plotting of the Dyson orbital.
 | `view_axis`    | Int     | Optional. If set (0,1,2), plots a 2D slice instead of 3D.   | 2              |
 | `output_image` | String  | Optional. If set, saves plot to file instead of display.    | "orbital.png"  |
 
+### Section: `beta_plot`
+Controls the plotting of the Beta parameter results.
+
+| Key            | Type    | Description                                                 | Example                |
+|----------------|---------|-------------------------------------------------------------|------------------------|
+| `do_plot`      | Boolean | If true, generates Beta vs eKE plot.                        | true                   |
+| `input_csv`    | String  | Optional. CSV file to plot. Defaults to calculation output. | "cn_beta.csv"          |
+| `output_image` | String  | Output PNG filename. Default: "beta_plot.png".              | "cn_beta_plot.png"     |
+| `show`         | Boolean | If true, displays plot window. Default: true.               | true                   |
+| `title`        | String  | Optional. Custom plot title.                                | "CN- Beta Parameters"  |
+
 4. Complete Example
 --------------------
 
@@ -115,7 +126,13 @@ Controls the plotting of the Dyson orbital.
     # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe and point dipole) to use numeric averaging
     "output_csv": "cn_beta_phys.csv"
   },
-  "visualization": { "do_plot": false }
+  "visualization": { "do_plot": false },
+  "beta_plot": {
+    "do_plot": true,
+    "output_image": "cn_beta_plot.png",
+    "show": true,
+    "title": "CN- Photodetachment Beta Parameters"
+  }
 }
 ```
 ```

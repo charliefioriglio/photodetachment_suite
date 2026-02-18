@@ -12,6 +12,7 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 *   **Averaging Options**: Program supports analytic averaging using Wigner-D matricies where applicable. For other cases, program supports numeric averaging witha  specifiable number of Euler Angles.
 *   **Relative Vibrational Channel Cross Sections**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
 *   **Visualization**: Built-in tools for plotting Dyson orbitals and cross-section results.
+*   **Beta Parameter Plotting**: Automated generation of Beta vs eKE plots with configurable output options.
 *   **Documentation**: See `job_guide.txt` for a comprehensive step-by-step tutorial and configuration reference.
 
 ## Directory Structure
@@ -72,7 +73,12 @@ Comments are not supported by .json files and are only for instructions here.
     # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe and point dipole) to use numeric averaging
     "output_csv": "cn_beta_phys.csv"
   },
-  "visualization": { "do_plot": false }
+  "visualization": { "do_plot": false },
+  "beta_plot": {
+    "do_plot": true,
+    "output_image": "cn_beta_plot.png",
+    "show": true
+  }
 }
 
 ```
@@ -98,7 +104,12 @@ Comments are not supported by .json files and are only for instructions here.
     "points": 50,
     "output_csv": "cn_beta.csv"
   },
-  "visualization": { "do_plot": true}
+  "visualization": { "do_plot": true},
+  "beta_plot": {
+    "do_plot": true,
+    "output_image": "cn_beta_plot.png",
+    "show": true
+  }
 }
 ```
 For a comprehensive guide on all configuration options, see `job_guide.txt`.

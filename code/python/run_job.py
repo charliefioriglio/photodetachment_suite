@@ -33,6 +33,7 @@ def main():
     dyson_io_script = os.path.join(project_root, "code/python/dyson_io.py")
     beta_gen_exe = os.path.join(project_root, "beta_gen")
     visualize_script = os.path.join(project_root, "code/python/visualize.py")
+    beta_plot_script = os.path.join(project_root, "code/python/plot_beta.py")
     
     # 2. Dyson Generation Step
     dyson_cfg = config.get("dyson", {})
@@ -240,6 +241,38 @@ def main():
              print("Launching visualization window...")
         
         run_command(vis_cmd)
+
+    # 5. Beta Plot Step
+    beta_plot_cfg = config.get("beta_plot", {})
+    if beta_plot_cfg.get("plot", False):
+        print("\n=== Beta Parameter Plotting ===")
+        
+        # Determine which CSV to plot
+        csv_file = beta_plot_cfg.get("input_csv")
+        if not csv_file:
+            # Use the calculation output CSV if not specified
+            csv_file = calc_cfg.get("output_csv", "results.csv")
+        
+        if not os.path.exists(csv_file):
+            print(f"Error: Beta CSV file '{csv_file}' not found.")
+            sys.exit(1)
+        
+        plot_cmd = ["python3", beta_plot_script, csv_file]
+        
+        # Output image
+        output_image = beta_plot_cfg.get("output_image", "beta_plot.png")
+        plot_cmd.extend(["--output", output_image])
+        
+        # Title (optional)
+        title = beta_plot_cfg.get("title")
+        if title:
+            plot_cmd.extend(["--title", title])
+        
+        # Show window
+        if beta_plot_cfg.get("show", True):
+            plot_cmd.append("--show")
+        
+        run_command(plot_cmd)
 
 if __name__ == "__main__":
     main()

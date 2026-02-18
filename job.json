@@ -1,0 +1,27 @@
+{
+  "qchem_output": "Test Dyson Orbitals/CN.out",
+  "dyson": {
+    "do_generation": true,
+    "indices": [0, 1],
+    "grid_step": 0.3,
+    "padding": 20.0,
+    "output_bin": "cn_dyson.bin"
+  },
+
+  "calculation": {
+    "do_calculation": true,
+    "type": "beta",
+    "model": "pwe",
+    "ie": 3.977,
+    "energies": [0.05, 0.1, 0.2, 0.5],
+    "l_max": 3,
+    "points": 50,
+    "output_csv": "cn_beta.csv"
+  },
+  "visualization": { "do_plot": true},
+  "beta_plot": {
+    "plot": true,
+    "output_image": "cn_beta_plot.png",
+    "show": true
+  }
+}
