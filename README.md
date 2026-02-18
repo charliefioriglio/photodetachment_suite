@@ -75,7 +75,7 @@ Remove all # from the file you run! Comments are not supported by .json files an
 }
 
 ```
-# Real Test
+**Real Test**
 ```json
 {
   "qchem_output": "data/CN.out",
