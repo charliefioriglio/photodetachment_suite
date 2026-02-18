@@ -75,4 +75,29 @@ Remove all # from the file you run! Comments are not supported by .json files an
 }
 
 ```
+# Real Test
+```json
+{
+  "qchem_output": "data/CN.out",
+  "dyson": {
+    "do_generation": true,
+    "indices": [0, 1],
+    "grid_step": 0.3,
+    "padding": 20.0,
+    "output_bin": "cn_dyson.bin"
+  },
+
+  "calculation": {
+    "do_calculation": true,
+    "type": "beta",
+    "model": "pwe",
+    "ie": 3.977,
+    "energies": [0.05, 0.1, 0.2, 0.5],
+    "l_max": 3,
+    "points": 50,
+    "output_csv": "cn_beta_phys.csv"
+  },
+  "visualization": { "do_plot": true, "output_png": "cn_beta_phys.png" }
+}
+```
 For a comprehensive guide on all configuration options, see `job_guide.txt`.
