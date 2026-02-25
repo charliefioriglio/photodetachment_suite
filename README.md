@@ -63,7 +63,7 @@ Comments are not supported by .json files and are only for instructions here.
   "calculation": {
     "do_calculation": true,        # True will calculate total cross sections
     "type": "beta",                # Beta or cross section
-    "model": "physical_dipole",    # pwe, point_dipole, physical_dipole, leave blank for exp[ikr]
+    "model": "physical_dipole",    # pwe, point_dipole, physical_dipole, eikr
     "dipole_list": [0.0, 0.2, 0.57],
     "dipole_length": 1.5,          # Only for physical dipole
     "ie": 3.977,                   # Ionization energy
