@@ -8,7 +8,7 @@ A high-performance C++/Python suite for calculating photodetachment cross sectio
 *   **Multiple Continuum Models**:
     *   **Plane Wave Expansion (PWE)**: Fast analytic approach for $D \approx 0$, or rigorous numeric averaging for general cases.
     *   **Point Dipole**: Exact solution for the electron-dipole interaction ($1/r^2$ potential). Supports both analytic and numeric averaging.
-    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths ($D > D_{crit}) without collapse.
+    *   **Physical Dipole**: Regularized finite dipole model (charges $\pm q$ separated by $2a$), enabling calculations for super-critical dipole strengths ($D > D_{crit}$) without collapse.
 *   **Averaging Options**: Program supports analytic averaging using Wigner-D matricies where applicable. For other cases, program supports numeric averaging witha  specifiable number of Euler Angles.
 *   **Relative Vibrational Channel Cross Sections**: Support for calculating relative cross-sections across vibrational channels using Franck-Condon factors.
 *   **Visualization**: Built-in tools for plotting Dyson orbitals and cross-section results.
