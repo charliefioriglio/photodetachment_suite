@@ -67,15 +67,16 @@ void AngleGrid::GenerateHardcoded() {
     
     double total_weight = 0.0;
     for(const auto& p : raw) {
-        // ezDyson Mapping (eikr.C): 
-        // aj = anggrid.GetPoint(A,v); (Column 1)
-        // bj = anggrid.GetPoint(B,v); (Column 2)
-        // wj = anggrid.GetPoint(G,v); (Column 3)
-        // RotnMatr rot(..., 0, bj, aj); -> Alpha=0, Beta=bj, Gamma=aj
+        // Grid data columns:
+        //   Column 1 (p.a): azimuthal angle [0, 2pi] -> alpha (Z-Y-Z first rotation)
+        //   Column 2 (p.b): polar angle [0, pi]      -> beta  (Y rotation)
+        //   Column 3 (p.g): quadrature weight         -> weight
+        // gamma = 0 since these are S^2 direction samples (third Euler angle
+        // is irrelevant for rotating a vector / sampling orientations on the sphere).
         
-        double alpha = 0.0;
+        double alpha = p.a;
         double beta = p.b;
-        double gamma = p.a;
+        double gamma = 0.0;
         double weight = p.g;
         
         points.push_back({alpha, beta, gamma, weight});
@@ -248,82 +249,13 @@ void AngleGrid::GenerateRepulsion(int n_points, int seed) {
 }
 
 void AngleGrid::ApplyGammaSampling(int n_gamma) {
-    if (n_gamma <= 1) return; // Default is gamma=0, no change needed if n=1 (implied gamma=0)
+    if (n_gamma <= 1) return;
     
     std::vector<Orientation> new_points;
     new_points.reserve(points.size() * n_gamma);
     
     double dGamma = M_PI / n_gamma; 
-    // User requested: "evenly divided between 0 and pi".
-    // "1 gamma = 0"
-    // "2 gamma = 0 and pi/2"
-    // "3 gamma = 0, pi/3, 2pi/3?" OR "0, pi/6, pi/3"?
-    // User examples: 
-    // "3 gamma = 0, pi/6, pi/3" -> spacing pi/2N?
-    // Wait, "evenly divided between 0 and pi".
-    // If we span fully [0, 2pi], we might average over 2pi.
-    // If user says "between 0 and pi", does it imply range [0, pi)? or [0, pi]?
-    // Rotations around Z-axis (gamma) for cylinder averaging often span 2pi.
-    // But user specifically said "1->0", "2->0, pi/2". This implies step=pi/2?
-    // "3 -> 0, pi/6, pi/3"? 
-    // If N=2 gives step Pi/2, then step = Pi / N? No, Pi/2.
-    // IF N=3 gives step Pi/6??
-    // Let's assume uniform spacing covering the circle, usually implies range [0, 2pi).
-    // Or if symmetry implies only [0, pi] needed?
-    // User said: "for 2 gamma = 0 and pi/2".
-    // This looks like N=2 partitions of Pi?
-    // "for 3 gamma = 0, pi/6, pi/3". 
-    // This progression is weird. N=2 => step pi/2. N=3 => step pi/6?
-    // Maybe user meant:
-    // N=1: 0
-    // N=2: 0, pi/2  (Spacing pi/2)
-    // N=3: 0, 2pi/3, 4pi/3 ?? No "0, pi/6, pi/3" is clustered.
-    // I suspect user might have meant "pi/N" spacing?
-    // Let's implement generic: Gamma_k = k * (2 * PI / N_gamma) for full cylinder?
-    // But user request is specific. "0 and pi/2" for N=2.
-    // If I map to "Evenly divided between 0 and pi": 
-    // 0, pi/(N-1) ... pi ?
-    // N=2: 0, pi. (Not pi/2).
-    // N=3: 0, pi/2, pi.
-    // "0 and pi/2" is specific.
-    // Maybe user meant "0 and pi"?
-    // I will implement "0 to 2pi uniform" as standard, but allow flag or just stick to user's literal example if consistent.
-    // "3 gamma = 0, pi/6, pi/3" -> The gap is pi/6. 
-    // This covers only [0, pi/3].
-    // I will use a safe default: Uniform sampling of [0, 2pi).
-    // Gamma_k = k * (2*Pi / n_gamma).
-    // For N=2: 0, Pi. (User said 0, Pi/2?)
-    // Let's look at beta_calculator reference or similar.
-    // Usually we integrate dGamma from 0 to 2Pi.
-    // I'll stick to 0..2pi distributed.
-    // WAIT. If the molecule has symmetry, maybe we only need smaller range.
-    // I will use: k * (2 * M_PI / n_gamma).
-    // N=1: 0.
-    // N=2: 0, Pi. 
-    // N=4: 0, Pi/2, Pi, 3Pi/2.
-    // This seems most physical. User's "0 and pi/2" for N=2 implies covering only a quadrant?
-    // I will implement Uniform 0..2pi for now.
-    
-    // Correction: User said "evenly divided between 0 and pi".
-    // So range is [0, pi].
-    // Step = Pi / n_gamma?
-    // N=1: 0.
-    // N=2: 0, Pi/2. (Matches user).
-    // N=3: 0, Pi/3, 2Pi/3. (User said 0, pi/6, pi/3... wait).
-    // If user said "0, pi/6, pi/3", that is 0, 30, 60.
-    // That is NOT evenly covering [0, pi].
-    // I will assume standard "Evenly divided [0, 2pi]" is actually better for general physics,
-    // OR "Evenly divided [0, pi]" if specific symmetry.
-    // I will implement: Gamma k = k * (M_PI / n_gamma) ??
-    // N=2 -> 0, PI/2.
-    // N=3 -> 0, PI/3, 2PI/3.
-    // This matches "0, pi/2" for N=2. 
-    // It is consistent.
-    
-    double step = M_PI / std::max(1, n_gamma); // Or 2*PI? Defaulting to user's "0, pi/2" logic.
-    // Actually, if I use 2*PI/N, N=4 gives 0, pi/2, pi, 3pi/2.
-    // If user asks for N=2 and gets 0, pi/2, maybe they mean K*Pi/N ?
-    // I will use `step = M_PI / n_gamma`.
+    double step = M_PI / std::max(1, n_gamma);
     
     for(const auto& p : points) {
         for(int k=0; k<n_gamma; ++k) {
