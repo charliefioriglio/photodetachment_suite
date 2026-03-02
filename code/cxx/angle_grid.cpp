@@ -17,7 +17,7 @@ void AngleGrid::GenerateRepulsion(int n_points, int seed) {
     double golden_ratio = (1.0 + std::sqrt(5.0)) / 2.0;
     
     for(int i=0; i<n_points; ++i) {
-        double z = 1.0 - 2.0 * (i + 0.5) / n_points; // 1 to -1 (avoid poles?)
+        double z = 1.0 - 2.0 * (i + 0.5) / n_points; // 1 to -1
         double theta = std::acos(z); // Beta
         double phi = 2.0 * M_PI * i / golden_ratio; // Alpha
         phi = std::fmod(phi, 2.0 * M_PI);
@@ -92,7 +92,6 @@ void AngleGrid::GenerateRepulsion(int n_points, int seed) {
                  double ndPi = std::sqrt(dP_i.x*dP_i.x + dP_i.y*dP_i.y + dP_i.z*dP_i.z);
                  dP_i.x/=ndPi; dP_i.y/=ndPi; dP_i.z/=ndPi;
                  
-                 // Symmetric check for j? dP_j = cross(vj, V) (tangent at vj pointing away from vi)
                  Vec3 dP_j = {
                      pts[j].y*V.z - pts[j].z*V.y,
                      pts[j].z*V.x - pts[j].x*V.z,
@@ -123,7 +122,7 @@ void AngleGrid::GenerateRepulsion(int n_points, int seed) {
     // Convert to Euler ZYZ
     double weight = 1.0 / n_points;
     for(const auto& p : pts) {
-        double alpha = std::atan2(p.y, p.x) + M_PI; // [0, 2pi] ideally? atan2 gives -pi, pi. +pi -> 0, 2pi
+        double alpha = std::atan2(p.y, p.x) + M_PI; // [0, 2pi]
         double beta = std::acos(p.z);
         // Default Gamma 0
         points.push_back({alpha, beta, 0.0, weight});

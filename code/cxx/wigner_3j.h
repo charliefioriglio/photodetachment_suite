@@ -32,19 +32,8 @@ public:
         // Target M = -m3
         // Check if indices are within bounds of the hardcoded table (l <= 10)
         if (j1 > 10 || j3 > 10) {
-             // Fallback or Error? Ideally we should implement general recursion if needed, 
-             // but for now we rely on the table.
              return 0.0; 
         }
-
-        // int L_idx = -1; // Index in cgc[j1][?]
-        // Table uses: cgc[l1][L_idx][m1+l1][m2+1]
-        // L_idx mapping from beta.cpp: L_idx = j3 - abs(j1-1); ??
-        // In ClebschGordan.cpp comments: "l2=1 always... [l1][L][m1][m2]"
-        // Checking beta.cpp usage:
-        // double cgc1 = cg.cgc[l][L_idx][m1+l][1]; where L_idx = ltot - std::abs(l-1)
-        // ltot is the coupled J (Result J). Here it is j3.
-        // So L_idx = j3 - std::abs(j1 - 1);
         
         int idx_j3 = j3 - std::abs(j1 - 1);
         if (idx_j3 < 0 || idx_j3 > 2) return 0.0; // Should be covered by selection rules |j1-j3|<=1

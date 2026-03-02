@@ -4,11 +4,11 @@
 #include <cstring>
 #include <array>
 
-// Internal helper for ezDyson-compatible Rotation Logic
+// Internal helper for Rotation Logic
 struct EzRotation {
     double mat[9];
 
-    // Calc rotn which is Transpose of Active ZXZ Matrix
+    // Calc rotn which is Transpose of Active ZYZ Matrix
     // Matches ezDyson/rotnmatr.C: EulerRotnMatr(alpha, beta, gamma)
     void set_euler_zxz_transpose(double alpha, double beta, double gamma) {
         double cosA = std::cos(alpha), sinA = std::sin(alpha);
@@ -16,26 +16,20 @@ struct EzRotation {
         double cosC = std::cos(gamma), sinC = std::sin(gamma);
 
         // Row 0
-        mat[0] = cosC*cosA - cosB*sinA*sinC; // Matches Active ZXZ R_00 ? No, R_00 = cAcG - cBsAsG. Same.
-        mat[1] = cosC*sinA + cosB*cosA*sinC; // R_10? sAcG + cBcAsG. Matches.
-        mat[2] = sinC*sinB;                  // R_20? sBsG. Matches.
+        mat[0] = cosC*cosA - cosB*sinA*sinC;
+        mat[1] = cosC*sinA + cosB*cosA*sinC;
+        mat[2] = sinC*sinB;
 
         // Row 1
-        mat[3] = (-sinC)*cosA - cosB*sinA*cosC; // R_01? -cA sG - cB sA cG. Matches R_01 of Active ZXZ?
-                                                // R_01 = cA(-sG) - sA(cB cG) = -cAsG - cBsAcG. Matches.
-        mat[4] = (-sinC)*sinA + cosB*cosA*cosC; // R_11? sA(-sG) + cA(cB cG). Matches.
-        mat[5] = cosC*sinB;                     // R_21? sB cG. Matches.
+        mat[3] = (-sinC)*cosA - cosB*sinA*cosC;
+                                            
+        mat[4] = (-sinC)*sinA + cosB*cosA*cosC;
+        mat[5] = cosC*sinB;                     
 
         // Row 2
-        mat[6] = sinB*sinA;      // R_02? sA sB. Matches.
-        mat[7] = (-sinB)*cosA;   // R_12? -cA sB. Matches.
-        mat[8] = cosB;           // R_22? cB. Matches.
-        
-        // Note: ezDyson implementation seems to store R^T relative to Active ZXZ?
-        // Wait, if mat[1] (0,1) matches R_10, then it IS Transpose.
-        // My check above: mat[1] matches R_10. 
-        // So this matrix IS R^T.
-        // And it transforms Lab -> Mol.
+        mat[6] = sinB*sinA;
+        mat[7] = (-sinB)*cosA;
+        mat[8] = cosB;
     }
 
     // Transform Lab -> Mol
@@ -57,10 +51,6 @@ void NumEikr::compute(const UniformGrid& labgrid,
     std::vector<double> k_values;
     k_values.reserve(energies.size());
     // Convert E(eV) to k(a.u.)
-    // E = k^2 / 2 => k = sqrt(2*E)
-    // Careful with units: Input energies are in eV.
-    // k (a.u.) = sqrt(2 * E_eV / 27.211386)
-    // From tools.h: HAR_TO_EV = 27.211386
     const double HAR_TO_EV = 27.211386;
     for(double e : energies) {
         k_values.push_back(std::sqrt(2.0 * e / HAR_TO_EV));
@@ -82,23 +72,11 @@ void NumEikr::calc_eikr_sq(const UniformGrid& labgrid,
     int n_orientations = anggrid.points.size();
     
     // Grid parameters
-    // Assuming labgrid describes the integration volume in Lab Frame
-    // Just iterating points x,y,z
-    // We assume uniform steps
     double dx = labgrid.dx;
     double dy = labgrid.dy;
     double dz = labgrid.dz;
     double dV = dx*dy*dz;
-    double dV2 = dV * dV; // Precompute dV^2 for |Integral|^2?
-    // Wait. ezDyson computes Integral(Psi * ...)^2.
-    // Integral ~ Sum(val * dV).
-    // |Integral|^2 ~ |Sum|^2.
-    // ezDyson code: tmp = (SumL * SumR).Re().
-    // Inside loop: Lcklm += val * dV? No.
-    // In eikr.C loop: Lcklm += totalLDys_par (which is val).
-    // Then after loop: tmp_par = (SumL * SumR).Re() * dVV * tmpavg.
-    // dVV = dV * dV. This matches |Integral*dV|^2.
-    
+    double dV2 = dV * dV;
     double x0 = labgrid.xmin;
     double y0 = labgrid.ymin;
     double z0 = labgrid.zmin;
@@ -106,8 +84,6 @@ void NumEikr::calc_eikr_sq(const UniformGrid& labgrid,
     int ny = labgrid.ny;
     int nz = labgrid.nz;
     
-    // Thread-local accumulation (since we parallelize over orientations? Or just simple loop)
-    // We will loop over orientations and Inside loop over energies.
     // Results accumulate to cpar[k], cperp[k].
     
     EzRotation rot;

@@ -103,7 +103,7 @@ namespace MathSpecial {
     }
 
     // Helper: Lanczos approximation for Gamma(z)
-    // Forward declaration for recursion (lambda workaround not needed for free func)
+    // Forward declaration for recursion
     std::complex<double> ComplexGamma(std::complex<double> z) {
          // Coefficients for g=7
          const double p[] = {

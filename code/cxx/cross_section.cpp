@@ -16,22 +16,6 @@ constexpr double C_SPEED_AU = 137.035999;
 // Plane wave expansion:
 // psi_{klm} = Y_{lm}(r_hat) * j_l(kr)
 // C_{klm} = i^l * integral( phi_dyson(r) * r_alpha * psi_{klm}(r) )
-//
-// In calculate.py, "planewave_expansion" returns Y * R.
-// The integral calculation sums: conj(psi) * dipole * DO.
-// Wait, eq 4: C_{klm} = i^l * int( phi * r_alpha * psi ).
-// calculate.py line 124: integrand = conj(psi) * dipole * DO.
-// This implies psi in Eq 4 is actually the conjugate already? 
-// No, standard overlap <psi| dipole | phi>.
-// If psi is the final state (continuum), then it's <psi| r | phi> = integral( psi* r phi ).
-// So calculate.py is correct: conj(psi).
-// Note: integral is over volume.
-// Prefactor i^l is NOT in calculate.py's integral loop, but |C|^2 makes phase irrelevant?
-// "Instead of |C|^2, we used the more accurate (C^L)* C^R..." = |C|^2 for same orbital.
-// Since i^l is a phase, |i^l|^2 = 1. So it drops out for Total Cross Section.
-// It assumes real Dyson orbital?
-// The C++ `cklm.C` uses `phasefactor`.
-// I will implement <psi| r | phi> and square the magnitude.
 
 std::vector<double> CrossSectionCalculator::ComputeTotalCrossSection(
     const Dyson& dyson_L,
@@ -95,30 +79,12 @@ std::vector<double> CrossSectionCalculator::ComputeTotalCrossSection(
     int nx = grid.nx; int ny = grid.ny; int nz = grid.nz;
     double dV = step * step * step;
     
-    // To accumulate "sum_alpha" correctly over grid, we need separate accumulators per (Energy, alpha) ?
-    // The integral is I = Sum( phi * r_alpha * conj(Y) * jl ).
-    // Cross Section ~ |I|^2.
-    // So we must compute the full Integral I for each Energy FIRST.
-    // We cannot just sum |term|^2 over grid.
-    // So we need accumulators for the Integers (Complex) for each E, l, m, alpha.
-    
-    // Storage: vector of Complex Accumulators.
-    // Size: Energies * (L_max+1) * (2L+1) * 3 (alphas) * 2 (L/R) ??
-    // That's manageable. 
-    // l_max ~ 3. (L+1)^2 ~ 16. Alpha=3. Total ~ 48.
-    // Energies ~ 20. Total ~ 1000 accumulators per L/R.
-    
     struct PartialWaveAccumulator {
         std::complex<double> val_L;
         std::complex<double> val_R;
     };
     
     // Indexing: [energy_idx][l][m_idx][alpha]
-    // Flattened or nested vectors.
-    // Let's use a flat vector for efficiency.
-    // Map (l, m) -> lm_index = l^2 + (m+l) ?
-    // Standard ordering: l=0(m=0), l=1(m=-1,0,1)...
-    // Total LM count = (l_max + 1)^2.
     
     int num_lm = (l_max + 1) * (l_max + 1);
     int num_alpha = 3;
@@ -241,14 +207,9 @@ std::vector<double> CrossSectionCalculator::ComputeTotalCrossSection(
             }
             total_sum += sum_alpha;
         }
-        
-         // DEBUG PRINT
 
         
-        // DEBUG PRINT
-
-        
-        total_sum /= 3.0; // Average polarization
+        total_sum /= 3.0; // Average over three orthogonal directions
         double norms = dyson_L.qchem_norm * dyson_R.qchem_norm;
         double sigma = prefactor * total_sum * norms * 2.0;
         
@@ -336,37 +297,14 @@ std::vector<double> CrossSectionCalculator::ComputePointDipoleCrossSection(
                 std::complex<double> I_R[3] = {0.0, 0.0, 0.0};
                 
                 // Pre-calculate integrals for each l component: J_{l,alpha}
-                // Actually easier to Loop Grid -> Accumulate contributions to I_alpha directly
-                // accumulating separately for each l component is standard, 
-                // but here c_{lN} mixes them.
-                // Optim: Loop Grid -> Compute Ylm* -> Add to accumulators for each l.
+                // Loop Grid -> Compute Ylm* -> Add to accumulators for each l.
                 
                 std::vector<std::vector<std::complex<double>>> partial_integrals_L(n_modes, std::vector<std::complex<double>>(3, 0.0));
                 std::vector<std::vector<std::complex<double>>> partial_integrals_R(n_modes, std::vector<std::complex<double>>(3, 0.0));
-                
-                // BUT we are inside Energy Loop -> Grid loop is expensive.
-                // We should invert: Loop Grid -> Loop Energies?
-                // But eigenmodes/Leff depend on nothing, but Bessel depends on k.
-                // We can stick to Energy -> Grid if performance allows. The user asked for 7 D values * 2 Orbitals = 14 runs.
-                // 14 runs is fine.
-                // Speed up: Precompute Ylm on grid? Done in PWE implicitly?
-                // Let's just do OpenMP the grid loop here.
-                
-                // We need to compute I_L/R for this SPECIFIC mode N.
-                // Or compute for ALL modes N at once to save grid pass?
-                // Yes, do all modes at once.
             }
         }
         
-        // Correct approach: Energy -> Grid
-        // Accumulate moments for ALL m, N. 
-        // Need storage: moments[lam_idx][N][alpha]
-        // lam goes -l_max to l_max.
-        // N goes 0 to n_modes(lam).
-        
         struct Moment { std::complex<double> val_L; std::complex<double> val_R; };
-        // Flattened storage? Map is slow.
-        // Let's use `vector<vector<Moment[3]>>` where outer is m, inner is N.
         
         std::vector<std::vector<std::vector<Moment>>> mode_moments; 
         // mode_moments[lam_offset][N][alpha]
@@ -429,8 +367,6 @@ std::vector<double> CrossSectionCalculator::ComputePointDipoleCrossSection(
                                    radial = (L_eff < 0.1) ? 1.0 : 0.0;
                                 }
                                 
-                                // Angular part: Omega* = Sum_l c_{lN}* Y* = (Sum c_{lN} Y)*
-                                // Wait, omega = Sum c Y. omega* = Sum c* Y*. (Coeffs are real).
                                 std::complex<double> omega_conj = 0.0;
                                 for(int i=0; i<n_modes; ++i) {
                                     omega_conj += sys.eigvecs[i][N] * Y_vals[i];
@@ -612,12 +548,6 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
     results.reserve(photon_energies_ev.size());
     
     // Construct Rotation Matrix R such that R * v_global = v_local
-    // In Local frame, dipole is along Z (0,0,1).
-    // Center is (0,0,0) in local.
-    // v_local = R * (v_global - center)
-    // In Local frame, dipole is along Z (0,0,1).
-    // Let global dipole axis be d_hat.
-    // We want R * d_hat = (0,0,1).
     
     std::vector<double> d_hat = dipole_axis;
     double d_norm = std::sqrt(d_hat[0]*d_hat[0] + d_hat[1]*d_hat[1] + d_hat[2]*d_hat[2]);
@@ -637,17 +567,6 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
     // Pick arbitrary temp vector not parallel to zp
     double tmp[3] = {1,0,0};
     if (std::abs(zp[0]) > 0.9) { tmp[0]=0; tmp[1]=1; tmp[2]=0; }
-    
-    // xp = normalize(cross(tmp, zp)) (Wait: we want R to be a rotation matrix)
-    // Actually R maps vector v to R*v. If matrix has rows r1, r2, r3, then v' = (r1.v, r2.v, r3.v).
-    // So rows of R are the basis vectors of the local frame expressed in the global coordinates.
-    // Local Z axis is zp. This should be the 3rd row.
-    
-    // yp = cross(zp, tmp) ... wait standard: z = x cross y.
-    // Let's form:
-    // yp_raw = cross(zp, tmp)
-    // yp = normalize(yp_raw)
-    // xp = cross(yp, zp) // Then xp, yp, zp is right handed orthonormal
     
     double yp_raw[3];
     yp_raw[0] = zp[1]*tmp[2] - zp[2]*tmp[1];
@@ -692,7 +611,7 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
         }
     }
     
-    // User Specification: D = 0.5 * Dipole Strength
+    // D = 0.5 * Dipole Strength
     PhysicalDipole phys(dipole_length, 0.5 * dipole_magnitude);
     
     // Loop Energies
@@ -718,20 +637,9 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
             
             // Loop Modes
             for (int n = 0; n < n_modes; ++n) {
-                // Check physicality if needed? (e.g. Bound states?)
-                // PhysicalDipoleAngular returns all modes.
-                // Radial solution exists for all.
-                // Assume all are continuum if E > 0.
-                
-                // Compute Moment vector I_alpha
-                // I_alpha = Integral( Phi_Dyson * r_alpha * Psi_{mn}^* )
-                // Note: calcualte.py uses conj(Psi).
                 
                 std::complex<double> I_L[3] = {0.0, 0.0, 0.0};
                 std::complex<double> I_R[3] = {0.0, 0.0, 0.0};
-                
-                // Integrate Grid
-                // OpenMP reduction?
                 
                 double IL_real[3] = {0,0,0}; double IL_imag[3] = {0,0,0};
                 double IR_real[3] = {0,0,0}; double IR_imag[3] = {0,0,0};
@@ -762,14 +670,8 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
                              std::complex<double> Psi = phys.EvaluateMode(x_loc, y_loc, z_loc, m, n, sol);
                              std::complex<double> Psi_conj = std::conj(Psi);
                              
-                             double dip[3] = {x, y, z}; // Dipole operator uses global coords (r vector from origin)
-                             // Integration Origin: D=0 limit PWE typically assumes r from origin (nucleus/centroid).
-                             // The wavefunction is centered elsewhere.
-                             // The matrix element is <Psi_final | r | Psi_initial>.
-                             // r operator is usually from the center of mass / nuclear frame origin.
-                             // Our grid (x, y, z) is in the Shifted Frame (Dyson Centroid).
-                             // If Dyson Centroid == Center of Mass approx, then dip={x,y,z} is correct.
-                             
+                             double dip[3] = {x, y, z};
+
                              for(int a=0; a<3; ++a) {
                                  std::complex<double> termL = phi_L * dip[a] * Psi_conj * dV;
                                  std::complex<double> termR = phi_R * dip[a] * Psi_conj * dV;
@@ -796,8 +698,6 @@ std::vector<double> CrossSectionCalculator::ComputePhysicalDipoleCrossSection(
                     sum_alpha += std::real(std::conj(I_L[a]) * I_R[a]);
                 }
                 total_sum += sum_alpha;
-                
-                 // DEBUG PRINT per mode
             }
         }
         
@@ -944,24 +844,6 @@ std::vector<std::vector<CrossSectionCalculator::DipoleMatrixElement>> CrossSecti
                         }
                     }
                 }
-                
-                // Combine L and R (Geometric Mean Approximation for squared element?)
-                // C++ convention so far: we compute XS ~ Re(I_L* I_R).
-                // For Beta: we need the Amplitudes. 
-                // Amplitude A = I. 
-                // But we have Left and Right dyson orbitals.
-                // Usually for Beta we use the "Right" orbital or the averaged?
-                // Or we compute Cross Section (Sigma) correctly via L/R, but Beta is a ratio.
-                // Ratio should be insensitive to L/R scaling if shapes are similar.
-                // Let's use the Geometric Mean Amplitude: I_eff = sqrt(I_L * I_R)? No, complex.
-                // Let's use I_R for calculating the angular distribution shape, 
-                // or arithmetic mean?
-                // EzDyson uses complex averaging?
-                // Let's just use I_L for now? Or (I_L + I_R)/2 ?
-                // The previous code computes sigma ~ Re(I_L* I_R).
-                // If I_L ~ I_R, then I_eff ~ I_L.
-                // I will store the *average* vector: I = 0.5 * (I_L + I_R).
-                // This preserves linearity.
                 
                 std::complex<double> I_avg[3];
                 for(int a=0; a<3; ++a) {

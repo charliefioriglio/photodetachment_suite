@@ -20,8 +20,6 @@ public:
     double evaluate(double x, double y, double z) const;
     
     // Normalization and Centroid
-    // Requires a grid-like evaluation integration
-    // We can do this using a bounding box numeric integration
     void renormalize(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, double step);
     
     struct Vector3 { double x, y, z; };

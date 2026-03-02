@@ -15,7 +15,7 @@ Dyson::Dyson(Molecule* molecule, const std::vector<double>& coeffs, std::string 
     
     size_t limit = std::min(basis_refs.size(), coefficients.size());
     for(size_t i=0; i<limit; ++i) {
-        if(std::abs(coefficients[i]) > 1.0e-12) { // 1e-12 threshold as per implementation plan
+        if(std::abs(coefficients[i]) > 1.0e-12) { // 1e-12 threshold
             active_basis_refs.push_back(basis_refs[i]);
             active_coefficients.push_back(coefficients[i]);
         }
@@ -38,7 +38,7 @@ void Dyson::renormalize(double xmin, double xmax, double ymin, double ymax, doub
     for (double x = xmin; x <= xmax; x += step) {
         for (double y = ymin; y <= ymax; y += step) {
             for (double z = zmin; z <= zmax; z += step) {
-                double v = evaluate(x, y, z); // Uses current normalization_factor (1.0 initially)
+                double v = evaluate(x, y, z); // Uses current normalization_factor
                 norm_sq += v * v * dV;
             }
         }
@@ -78,7 +78,7 @@ void Dyson::update_geometry() {
     // Re-flatten to get new coordinates
     basis_refs = mol->flatten_basis();
     
-    // Re-filter active refs (logic duplicated from constructor, but safe)
+    // Re-filter active refs
     active_basis_refs.clear();
     active_coefficients.clear();
     

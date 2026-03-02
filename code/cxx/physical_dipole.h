@@ -15,8 +15,7 @@ public:
     // Returns: {Eigenvalues, Eigenvectors (columns), l_values (indices)}
     // The coefficients in Eigenvectors correspond to the P_l^m basis functions where l = l_values[i].
     //
-    // D is the parameter used in the radial/angular equation (Eq 7.2 in reference).
-    // Note: Physical Dipole Moment mu = 2*a*D? (Check verification).
+    // D is the parameter used in the radial/angular equation.
     static std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<int>>
     Solve(int m, int l_max, double E, double a, double D);
 

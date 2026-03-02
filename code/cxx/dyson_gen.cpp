@@ -67,24 +67,13 @@ int main(int argc, char** argv) {
     }
     
     int num_dyson_orbs;
-    if (!(in >> num_dyson_orbs)) num_dyson_orbs = 1; // Backward compatibility fallback (unlikely to hit if I control input)
-    // Actually, old format had "n_dyson" (count of coeffs) where I now put "num_dyson_orbs".
-    // To safe-guard, the old format had large int (e.g. 500) for n_coeffs. "num_dyson_orbs" will be 1 or 2.
-    // If input is "500", we might fail. 
-    // I will assume I always update python writer.
-    
+    if (!(in >> num_dyson_orbs)) num_dyson_orbs = 1; // Backward compatibility fallback
     std::vector<Dyson> dysons;
-    
-    // I need to handle the case where the file might just have the n_coeffs directly (old format).
-    // But since I'm rewriting python, let's just assume new format 100%.
     
     for (int d = 0; d < num_dyson_orbs; ++d) {
         int n_coeffs;
         double norm_val = 1.0;
         in >> n_coeffs >> norm_val; // Expecting "N NORM"
-        // If old input logic, fallback? 
-        // If just N, stream parsing might fail or read next token. 
-        // Python writer guarantees we send norm now.
         
         std::vector<double> coeffs(n_coeffs);
         for (int i = 0; i < n_coeffs; ++i) in >> coeffs[i];
@@ -146,16 +135,6 @@ int main(int argc, char** argv) {
     }
     
     grid.write_binary(output_file, data);
-    // std::cout << "Wrote " << data.size() << " points to " << output_file << std::endl;
-    // Print norms
-    /*
-    std::cout << "Norm(L) [Grid]: " << dysons[0].normalization_factor 
-              << ", [QChem]: " << dysons[0].qchem_norm << std::endl;
-    if (dysons.size() > 1) {
-        std::cout << "Norm(R) [Grid]: " << dysons[1].normalization_factor 
-                  << ", [QChem]: " << dysons[1].qchem_norm << std::endl;
-    }
-    */
 
     // XS Params
     double ie_ev, e_min, e_max;

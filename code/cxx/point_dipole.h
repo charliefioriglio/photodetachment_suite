@@ -20,7 +20,6 @@ private:
     Wigner3J w3j;
     
     // Cache for eigensystems: key = (lam, l_max)
-    // Note: D is fixed per instance, but lam and l_max vary.
     // Using a simple map with string key or tuple equivalent.
     std::map<std::pair<int, int>, Eigensystem> eigen_cache;
     
@@ -31,7 +30,6 @@ public:
 
     // Evaluate the continuum wavefunction at a specific point for a specific k-vector
     // Sums over all allowed modes.
-    // Matches python: build_directional_wavefunction
     std::complex<double> EvaluateDirectional(
         const double* k_vec,
         double energy_au,

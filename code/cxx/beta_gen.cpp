@@ -17,13 +17,11 @@
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::cerr << "Usage: " << argv[0] << " input_file output_file [--beta]" << std::endl;
-        // Output file arg is kept to match dyson_gen signature but maybe unused or used for beta.csv
         return 1;
     }
 
     std::string input_file = argv[1];
-    std::string output_file = argv[2]; // Unused for Beta, but arguments must match python call structure?
-    // Actually, python doesn't call this yet. I will call it manually.
+    std::string output_file = argv[2];
     
     std::ifstream in(input_file);
     if (!in) {
@@ -135,7 +133,7 @@ int main(int argc, char** argv) {
     const Dyson& L_orig = dysons[0];
     const Dyson& R_orig = (dysons.size() > 1) ? dysons[1] : dysons[0];
 
-    // Centering Logic (User Request)
+    // Centering Logic
     // 1. Calculate Centroid using the bounding box of the grid
     std::cout << "Calculating Dyson centroid..." << std::endl;
     // Use the grid parameters from input for bounding box
@@ -299,7 +297,7 @@ int main(int argc, char** argv) {
         }
     } else {
         // Use NumEikr for optimized calculation (ezDyson logic)
-        std::cout << "Calculating Beta parameters using NumEikr (ezDyson algorithm)..." << std::endl;
+        std::cout << "Calculating Beta parameters using NumEikr ..." << std::endl;
         NumEikr num_eikr;
         num_eikr.compute(grid, L, R, angle_grid, beta_energies);
         

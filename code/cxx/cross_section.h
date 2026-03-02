@@ -32,7 +32,7 @@ public:
         int l_max,
         double dipole_magnitude, // Dipole Strength. (Physical D = 0.5 * Strength).
         bool use_point_dipole,
-        double dipole_length = 0.0 // 'a'. If > 0, uses Physical Dipole (overrides PWE, point_dipole flag check priority?)
+        double dipole_length = 0.0 // 'a'. If > 0, uses Physical Dipole
     );
     // Calculates sigma for a list of PHOTON energies (eV)
     static std::vector<double> ComputeTotalCrossSection(
@@ -66,7 +66,7 @@ public:
         double dipole_magnitude,
         double dipole_length,
         const std::vector<double>& dipole_axis = {0.0, 0.0, 1.0},
-        const std::vector<double>& dipole_center = {0.0, 0.0, 0.0} // Global coordinates of dipole center
+        const std::vector<double>& dipole_center = {0.0, 0.0, 0.0}
     );
 
     // For Beta Calculation: Return Matrix Elements in Body Frame

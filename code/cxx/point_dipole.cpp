@@ -54,20 +54,9 @@ Eigensystem PointDipole::GetEigensystem(int lam, int l_max) {
             double coupling = -2.0 * D * std::sqrt((2.0 * l + 1.0) * (2.0 * lp + 1.0)) * tj1 * tj2;
             
             H[i][j] += coupling; 
-            // Hamiltonian is symmetric, H[j][i] is handled when loop reaches j.
-            // Wait, += ? The python code says H[i][j] += ... and H[j][i] = H[i][j].
-            // But we iterate over all i. So if we just set H[i][j], we might double count if we do it for both (i,j) and (j,i).
-            // Actually python loop: for i... for dl in [-1, 1].
-            // It sets H[i][j] and H[j][i].
-            // My loop iterates i, then looks at neighbors. It will encounter the pair (l, l+1) twice.
-            // Simple approach: Only set if j > i.
         }
     }
     
-    // Just re-do loop carefully to avoid double adding if initialized to 0.
-    // Actually, let's zero it first (done).
-    // Loop over i, loop over dl=-1,1.
-    // Only calculate if j > i to maintain symmetry and single calculation.
     for (int i = 0; i < n; ++i) {
         int l = l_vals[i];
         int neighbors[] = {l - 1, l + 1};
@@ -80,8 +69,6 @@ Eigensystem PointDipole::GetEigensystem(int lam, int l_max) {
             double tj1 = w3j.get_3j_dipole(lp, l, 0, 0, 0);       
             double tj2 = w3j.get_3j_dipole(lp, l, -lam, 0, lam);  
             
-            // Matlab code has (-1^lam) factor which is always -1. 
-            // This flips the sign from -2.0 to +2.0.
             double coupling = 2.0 * D * std::sqrt((2.0 * l + 1.0) * (2.0 * lp + 1.0)) * tj1 * tj2;
             H[i][j] = coupling;
             H[j][i] = coupling;
@@ -145,8 +132,6 @@ std::complex<double> PointDipole::EvaluateDirectional(
             // Filter modes
             if (eigval < -0.25) continue; // Bound state or unphysical
             
-            // Compute Coefficient A_N = 4 pi * i^L * Y_mode(k)*
-            // Need Y_mode(k) = sum_l (c_l^N * Y_lm(k))
             std::complex<double> omega_dir = 0.0;
             for(int i=0; i<n_basis; ++i) {
                 // sys.eigvecs[i][N] is the coefficient of l-basis i in mode N
@@ -200,17 +185,6 @@ double PointDipole::EvaluateRadialMode(int lam, int N, double k, double r, int l
     
     double eigval = sys.eigvals[N];
     
-    // Effective L
-    // l(l+1) = eigval -> l = -0.5 + sqrt(0.25 + eigval)
-    // Note: eigval is lambda.
-    // If eigval < -0.25, L_eff is complex -> Bound state (or evanescent). 
-    // We expect continuum to verify against real modes for now?
-    // Or if complex, return meaningful value?
-    // Physical Dipole radial returns complex S.
-    // Let's assume sub-critical for now (Real nu).
-    
-    // Check criticality with complex support?
-    // For now, assume Real return type as requested by signature.
     
     double val_sq = 0.25 + eigval;
     if (val_sq < 0) return 0.0; // Bound/Complex

@@ -72,7 +72,7 @@ std::vector<BetaResult> BetaCalculator::CalculateBeta(
         for (int i = 0; i < int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            // Match ezDyson convention
             R.SetFromEuler(0.0, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose();
             
@@ -138,7 +138,7 @@ std::vector<std::vector<std::complex<double>>> ComputeSphericalMatrixElements(
     
     #pragma omp parallel
     {
-        auto local_moments = moments; // Thread-local copy
+        auto local_moments = moments;
         
         #pragma omp for
         for (int ix = 0; ix < grid.nx; ++ix) {
@@ -217,17 +217,12 @@ std::vector<BetaResult> ComputeBetaFromMatrixElements(
     ClebschGordan cg; 
     
     // Dipole normalization factor
-    // IMPORTANT: Check consistency with PWE derivation.
-    // In ComputeSphericalMatrixElements, we didn't apply prefactors.
     double dipole_norm = std::sqrt(4.0 * M_PI / 3.0); 
 
     for(size_t ie=0; ie<energies_ev.size(); ++ie) {
         double E_eV = energies_ev[ie];
         const auto& C_L = matrix_elements_L[ie];
         const auto& C_R = matrix_elements_R[ie];
-        
-        // We work with copies to apply norm
-        // Or apply norm on the fly
         
         double sigma_par = 0.0;
         double sigma_perp = 0.0;
@@ -546,7 +541,6 @@ std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
                   // Coefficient: sys.eigvecs[l_idx_in_sys][N]
                   double c_lin = sys.eigvecs[l_idx_in_sys][N];
                   
-                  // Match PWE Magnitude: 1.0 (Implicit 4pi skipped)
                   double prefactor = 1.0; 
                   
                   std::complex<double> weight = prefactor * c_lin * phase;
@@ -636,7 +630,6 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPWENumeric(
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
             R.SetFromEuler(0.0, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose(); // Lab to Body
             
@@ -1021,7 +1014,7 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipole(
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            // alpha beta alpha was necessary to get accurate results
             R.SetFromEuler(orient.alpha, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose(); // Lab to Body
             
@@ -1082,10 +1075,6 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipole(
         }
         
         // Finalize
-        // Apply Norms (Squared, already applied via I_L * I_R approx in matrix element? 
-        // No, we used I_avg = 0.5(I_L + I_R) in matrix elem.
-        // So |I_avg|^2 approx |I_L||I_R|.
-        // And we need dyson norms.
         double norms = dyson_L.qchem_norm * dyson_R.qchem_norm; 
         
         double sigma_par_total = sum_sigma_par * norms;
