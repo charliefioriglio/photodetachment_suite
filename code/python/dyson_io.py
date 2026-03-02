@@ -7,7 +7,6 @@ import argparse
 from dataclasses import dataclass
 from typing import List, Sequence, Dict
 
-# Reuse constants and logic from notebook
 BOHR_TO_ANGSTROM = 0.529177210903
 ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM
 ANGULAR_LETTER_TO_L = {"S": 0, "P": 1, "D": 2, "F": 3, "G": 4}
@@ -41,7 +40,7 @@ class QChemData:
     n_basis_functions: int
     pure_map: Dict[int, bool]
 
-# --- Parsing Logic (Ported from DO_handler.ipynb) ---
+# --- Parsing Logic ---
 
 def parse_float(s: str) -> float:
     return float(s.replace("D", "E").replace("d", "e"))
@@ -77,8 +76,6 @@ def extract_basis_block(lines: Sequence[str]) -> List[str]:
     for line in lines:
         if ("basis set" in line.lower() or "$basis" in line.lower()) and not in_block:
             # Check if it's the $rem variable or similar, we want the actual block header or $basis section
-            # But $basis usually appears as a standalone line or header
-            # In CuO_pVTZ.out it is '$basis'
             if "basis =" in line.lower() or "basis=" in line.lower(): continue # skip $rem
             in_block = True
             continue
@@ -129,7 +126,6 @@ def parse_basis(basis_lines, atoms, pure_map):
             continue
             
         if current_atom is None:
-            # Maybe skipping header mismatch
             cursor += 1
             continue
             
@@ -155,10 +151,6 @@ def total_basis_functions(atoms):
         for shell in atom.shells:
             l = shell.angular_momentum
             n_funcs = (2*l + 1) if shell.is_pure else ((l+1)*(l+2)//2)
-            # n_contractions is basically 1 here per parsing logic (each P block is 1 contraction)
-            # Note: SP shells are handled differently in C++ ref, but typically split in Q-Chem output?
-            # Q-Chem output usually lists S and P separately unless SP used.
-            # My simple parser assumes standard blocks.
             count += n_funcs
     return count
 
@@ -223,8 +215,6 @@ def load_qchem(path):
         for k in pure_map: pure_map[k] = False
 
     # This is a critical check for G-shells
-    # User had: purecart[1] == 1 -> G is pure.
-    # We default pure=True.
 
     atoms = parse_basis(basis_lines, atoms, pure_map)
     
@@ -240,8 +230,7 @@ def load_qchem(path):
 def write_cpp_input(data: QChemData, dyson_indices: List[int], grid: dict, output_path: str):
     with open(output_path, "w") as f:
         atoms = data.atoms
-        # Center the molecule at (0,0,0) for Cross Section calculations
-        # This is crucial for valid Partial Wave Expansion (l-determination)
+        # Center the molecule at (0,0,0)
         coords = np.array([a.center_bohr for a in atoms])
         centroid = np.mean(coords, axis=0)
         
@@ -266,7 +255,7 @@ def write_cpp_input(data: QChemData, dyson_indices: List[int], grid: dict, outpu
             for e, c in zip(s.exponents, s.coefficients):
                 f.write(f"{e:.6f} {c:.6f}\n")
         
-        # 3. Dyson Coefficients (Supports multiple)
+        # 3. Dyson Coefficients
         f.write(f"{len(dyson_indices)}\n")
         for idx in dyson_indices:
             do = data.dyson_orbitals[idx]
@@ -373,20 +362,9 @@ if __name__ == "__main__":
                 sys.exit(1)
             print(f"Found {len(vib_states)} vibrational states.")
             # Use the first state as the base IE for C++ calculation to generate the curve
-            # ACTUALLY: The C++ code takes IE as input. 
-            # Strategy:
-            # 1. We need sigma_el(eKE).
-            # 2. C++ computes sigma_el(E_ph - IE).
-            # 3. We should run C++ with IE=0.0 to get sigma_el(E_ph) = sigma_el(eKE).
-            # 4. Then in python we map: sigma_v(E) = sigma_el(E - E_bind_v) * FCF^2.
-            
-            # So, run C++ with --ie 0.0 and range [0, Max_E_needed].
-            # Max E_ph user asks for is e_range[1]. 
-            # Max eKE needed is e_range[1] - min(E_bind).
-            # Min eKE needed is 0.
             
             # Relative XS Mode
-            # We pass the user requested Photon Energies directly to C++
+            # Pass the user requested Photon Energies directly to C++
             # C++ will compute Relative XS using the Vib block.
             
             # Construct Photon Energy List
@@ -396,9 +374,6 @@ if __name__ == "__main__":
             
             with open(temp_inp, "a") as f:
                 # Format: IE LMAX N_PTS
-                # IE passed as 0.0 usually if we want raw mapping, but here we pass actual IE if needed?
-                # Actually ComputeRelativeCrossSections takes photon_energies and uses (E_ph - E_bind).
-                # So we can pass IE=0.0 to CrossSectionCalculator (since we handle binding manually).
                 
                 f.write(f"\n{args.ie} {args.lmax} {pts}\n")
                 
@@ -419,12 +394,6 @@ if __name__ == "__main__":
                 print("Warning: IE is 0 or negative. Ensure this is correct.")
             
             # Construct Energy List (Linspace from range)
-            # E_ph = eKE + IE
-            # Users pass eKE range usually? 
-            # args.e_range = [Min_eKE, Max_eKE, PTS] usually in run_job.
-            # Convert to Photon Energy if beta_gen expects it?
-            # ComputeTotalCrossSection expects Photon Energies.
-            # So len = PTS.
             
             min_e = args.e_range[0] + args.ie
             max_e = args.e_range[1] + args.ie

@@ -67,15 +67,14 @@ def main():
             if do_calc and len(indices) == 0:
                  print("Error: Calculation requested but no Dyson indices provided.")
                  sys.exit(1)
-            # Default to index 0 if generation only? Or complain.
-            # python script defaults to index 0 usually.
+            # python script defaults to index 0
         
         # Grid Step
         step = dyson_cfg.get("grid_step", 0.3)
         cmd.extend(["--grid-step", str(step)])
         
         # Padding
-        padding = dyson_cfg.get("padding") # Default in dyson_io is 5.0
+        padding = dyson_cfg.get("padding") # Default in dyson_io is 20.0
         if padding is not None:
              cmd.extend(["--padding", str(padding)])
              
@@ -87,8 +86,7 @@ def main():
              else:
                  print(f"Warning: Vibrational file '{vib_file}' not found. Skipping relative XS.")
         
-        # If calculation is enabled, we need to pass calculation-specific flags to dyson_io
-        # so it generates 'cpp_input.dat' properly.
+        # If calculation is enabled, we need to pass calculation-specific flags to dyson_io so it generates 'cpp_input.dat' properly.
         if do_calc:
             cmd.append("--xs") # Enable XS/Beta mode in input generation
             
@@ -121,9 +119,6 @@ def main():
             energies = calc_cfg.get("energies", [])
             if energies:
                 # dyson_io accepts --e-range MIN MAX PTS
-                # We need to construct a range that encompasses the requested energies
-                # used by beta_gen, even though beta_gen might override exact energies.
-                # Just nice to consistency.
                 if len(energies) > 0:
                     min_e = min(energies)
                     max_e = max(energies)
