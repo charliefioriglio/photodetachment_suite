@@ -74,6 +74,22 @@ public:
         int l_max = 3
     );
 
+    // Physical Dipole with Analytic (CG-coefficient) Averaging
+    // Approximates eta ~ cos(theta) to express spheroidal angular
+    // functions in the Y_lm basis, then uses the same CG averaging
+    // as PWE/point dipole analytic paths.
+    static std::vector<BetaResult> CalculateBetaPhysicalDipoleAnalytic(
+        const Dyson& dyson_L,
+        const Dyson& dyson_R,
+        const UniformGrid& grid,
+        const std::vector<double>& photoelectron_energies_ev,
+        double dipole_strength,
+        double dipole_length,
+        const std::vector<double>& dipole_axis,
+        const std::vector<double>& dipole_center,
+        int l_max = 3
+    );
+
 private:
     static std::complex<double> ComputeNumericalMatrixElement(
         const Dyson& dyson,

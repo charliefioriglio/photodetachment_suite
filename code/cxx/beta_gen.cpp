@@ -91,10 +91,8 @@ int main(int argc, char** argv) {
         0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5
     };
     
-    int n_points = 150; // Default (Hardcoded)
-    bool use_hardcoded = true;
+    int n_points = 100; // Default
 
-    // Parse args
     // Parse args
     bool use_pwe = false;
     for(int i=3; i<argc; ++i) {
@@ -104,11 +102,11 @@ int main(int argc, char** argv) {
             int j = i + 1;
             while(j < argc) {
                 std::string val = argv[j];
-                if (val.substr(0, 2) == "--") break; 
+                if (val.substr(0, 2) == "--") break;
                 try {
                     beta_energies.push_back(std::stod(val));
                 } catch(...) {
-                    break; 
+                    break;
                 }
                 j++;
             }
@@ -117,7 +115,6 @@ int main(int argc, char** argv) {
             if (i + 1 < argc) {
                 try {
                     n_points = std::stoi(argv[i+1]);
-                    // use_hardcoded = false; // Removed to allow explicit 150 to use hardcoded
                     i++;
                 } catch (...) {}
             }
@@ -125,20 +122,15 @@ int main(int argc, char** argv) {
             use_pwe = true;
         }
     }
-    
+
     if (beta_energies.empty()) {
         std::cerr << "Error: No energies specified." << std::endl;
         return 1;
     }
 
     AngleGrid angle_grid;
-    if (use_hardcoded && n_points == 150) {
-        std::cerr << "Generating Hardcoded Angle Grid (150 pts)..." << std::endl;
-        angle_grid.GenerateHardcoded();
-    } else {
-        std::cerr << "Generating Repulsion Angle Grid (" << n_points << " pts)..." << std::endl;
-        angle_grid.GenerateRepulsion(n_points);
-    }
+    std::cerr << "Generating Repulsion Angle Grid (" << n_points << " pts)..." << std::endl;
+    angle_grid.GenerateRepulsion(n_points);
     
     const Dyson& L_orig = dysons[0];
     const Dyson& R_orig = (dysons.size() > 1) ? dysons[1] : dysons[0];
@@ -243,7 +235,7 @@ int main(int argc, char** argv) {
             }
         }
     } else if (use_physical_dipole) {
-        std::cout << "Calculating Cross Section using Physical Dipole Model (D=" << dipole_strength << ", a=" << dipole_length << ")..." << std::endl;
+        std::cout << "Using Physical Dipole Model (D=" << dipole_strength << ", a=" << dipole_length << ")" << std::endl;
         std::cout << "Using l_max = " << l_max << std::endl;
         
         // Determine Dipole Axis (from atoms 0 and 1 if available)
@@ -263,19 +255,28 @@ int main(int argc, char** argv) {
              std::cout << "Bond Center: (" << dipole_center[0] << ", " << dipole_center[1] << ", " << dipole_center[2] << ")" << std::endl;
         }
 
-
-        // Compute Beta Parameters using Physical Dipole Model
-        std::cout << "Computing Beta Parameters..." << std::endl;
-        
-        auto beta_results = BetaCalculator::CalculateBetaPhysicalDipole(
-            L, R, grid, beta_energies,
-            dipole_strength, dipole_length,
-            dipole_axis, dipole_center,
-            angle_grid, l_max
-        );
-        
-        for(const auto& res : beta_results) {
-            final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+        if (use_numeric_averaging) {
+            std::cout << "Computing Beta Parameters (Numeric Averaging)..." << std::endl;
+            auto beta_results = BetaCalculator::CalculateBetaPhysicalDipole(
+                L, R, grid, beta_energies,
+                dipole_strength, dipole_length,
+                dipole_axis, dipole_center,
+                angle_grid, l_max
+            );
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
+        } else {
+            std::cout << "Computing Beta Parameters (Analytic Averaging)..." << std::endl;
+            auto beta_results = BetaCalculator::CalculateBetaPhysicalDipoleAnalytic(
+                L, R, grid, beta_energies,
+                dipole_strength, dipole_length,
+                dipole_axis, dipole_center,
+                l_max
+            );
+            for(const auto& res : beta_results) {
+                final_results.push_back({res.energy, res.sigma_par, res.sigma_perp, res.beta});
+            }
         }
         
     } else if (use_point_dipole) {

@@ -128,7 +128,9 @@ void NumEikr::calc_eikr_sq(const UniformGrid& labgrid,
             const auto& p = anggrid.points[v];
             
             // Set rotation for this thread's orientation
-            rot_local.set_euler_zxz_transpose(p.alpha, p.beta, p.gamma);
+            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            // This ensures the body-frame polarization vector spans full S²
+            rot_local.set_euler_zxz_transpose(0.0, p.beta, p.alpha);
             double weight = p.weight;
             
             // Pre-allocate sums for all energies for this orientation

@@ -72,7 +72,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBeta(
         for (int i = 0; i < int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            R.SetFromEuler(orient.alpha, orient.beta, orient.gamma);
+            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            R.SetFromEuler(0.0, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose();
             
             double pol_mol[3] = {pol_lab[0], pol_lab[1], pol_lab[2]};
@@ -428,6 +429,8 @@ std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
         Eigensystem sys = pd.GetEigensystem(lam, l_max);
         int n_modes = sys.l_vals.size();
         overlaps[lam + l_max].resize(n_modes, std::vector<std::complex<double>>(3, {0.0, 0.0}));
+
+
     }
     
     // Grid Loop
@@ -633,7 +636,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPWENumeric(
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            R.SetFromEuler(orient.alpha, orient.beta, orient.gamma);
+            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            R.SetFromEuler(0.0, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose(); // Lab to Body
             
             // Lab Polarization in Body Frame
@@ -709,7 +713,120 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPWENumeric(
     return results;
 }
 
+// Per-energy point dipole overlap data indexed by (m, N) instead of (l, m)
+struct PointDipoleOverlapData {
+    // overlaps[m_idx][N][mu], where m_idx = m + l_max
+    std::vector<std::vector<std::vector<std::complex<double>>>> overlaps;
+    // Eigensystems per m: eigsys[m_idx]
+    std::vector<Eigensystem> eigsys;
+};
+
+// Compute raw overlaps O_{m,N,mu} = < phi | r_mu | R_N(kr) Omega_N*(r) >
+// These are the spatial integrals per mode (m, N), WITHOUT the i^L or eigenvector assembly.
+static PointDipoleOverlapData ComputePointDipoleOverlaps(
+    const Dyson& dyson,
+    const UniformGrid& grid,
+    double k,
+    double dipole_strength,
+    int l_max
+) {
+    PointDipoleOverlapData data;
+    PointDipole pd(dipole_strength);
+    double dV = grid.dx * grid.dy * grid.dz;
+
+    data.eigsys.resize(2*l_max + 1);
+    data.overlaps.resize(2*l_max + 1);
+
+    for (int lam = -l_max; lam <= l_max; ++lam) {
+        data.eigsys[lam + l_max] = pd.GetEigensystem(lam, l_max);
+        int n_modes = data.eigsys[lam + l_max].l_vals.size();
+        data.overlaps[lam + l_max].resize(n_modes, std::vector<std::complex<double>>(3, {0.0, 0.0}));
+    }
+
+    // Grid Loop — same integration as ComputePointDipoleMatrixElements
+    #pragma omp parallel
+    {
+        auto local_overlaps = data.overlaps;
+        for(auto& v1 : local_overlaps) for(auto& v2 : v1) for(auto& val : v2) val = {0.0, 0.0};
+
+        #pragma omp for
+        for (int ix = 0; ix < grid.nx; ++ix) {
+           for (int iy = 0; iy < grid.ny; ++iy) {
+              for (int iz = 0; iz < grid.nz; ++iz) {
+                 double x = grid.xmin + ix * grid.dx;
+                 double y = grid.ymin + iy * grid.dy;
+                 double z = grid.zmin + iz * grid.dz;
+
+                 double dyson_val = dyson.evaluate(x, y, z);
+                 if (std::abs(dyson_val) < 1e-12) continue;
+
+                 double r = std::sqrt(x*x + y*y + z*z);
+                 if (r < 1e-10) continue;
+
+                 double theta = std::acos(z/r);
+                 double phi = std::atan2(y, x);
+
+                 // Spherical dipole components: r * Y_1^mu*(r)
+                 std::complex<double> Y1_m1 = MathSpecial::SphericalHarmonicY(1, -1, theta, phi);
+                 std::complex<double> Y1_0  = MathSpecial::SphericalHarmonicY(1, 0,  theta, phi);
+                 std::complex<double> Y1_1  = MathSpecial::SphericalHarmonicY(1, 1,  theta, phi);
+                 std::complex<double> dip[3];
+                 dip[0] = r * std::conj(Y1_m1);
+                 dip[1] = r * std::conj(Y1_0);
+                 dip[2] = r * std::conj(Y1_1);
+
+                 for (int lam = -l_max; lam <= l_max; ++lam) {
+                      const auto& sys = data.eigsys[lam + l_max];
+                      int n_modes = sys.l_vals.size();
+
+                      std::vector<std::complex<double>> Y_vals(n_modes);
+                      for(int i=0; i<n_modes; ++i) {
+                          Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(sys.l_vals[i], lam, theta, phi));
+                      }
+
+                      for(int N=0; N<n_modes; ++N) {
+                          double eigval = sys.eigvals[N];
+                          if (eigval < -0.25) continue;
+                          double L_eff = 0.5 * (-1.0 + std::sqrt(1.0 + 4.0 * eigval));
+
+                          double bessel = MathSpecial::CylBesselJ(L_eff + 0.5, k*r);
+                          double radial = std::sqrt(M_PI / (2.0 * k * r)) * bessel;
+
+                          // Angular eigenfunction Omega_N*(r) = sum_l c_l^N Y_lm*(r)
+                          std::complex<double> omega_r = 0.0;
+                          for(int i=0; i<n_modes; ++i) {
+                              omega_r += sys.eigvecs[i][N] * Y_vals[i];
+                          }
+
+                          std::complex<double> fragment = radial * omega_r * dyson_val * dV;
+
+                          for(int mu=0; mu<3; ++mu) {
+                              local_overlaps[lam+l_max][N][mu] += fragment * dip[mu];
+                          }
+                      }
+                 }
+              }
+           }
+        }
+
+        #pragma omp critical
+        {
+            for(size_t i=0; i<data.overlaps.size(); ++i) {
+                for(size_t j=0; j<data.overlaps[i].size(); ++j) {
+                    for(int mu=0; mu<3; ++mu) {
+                        data.overlaps[i][j][mu] += local_overlaps[i][j][mu];
+                    }
+                }
+            }
+        }
+    }
+
+    return data;
+}
+
 // Helper for Point Dipole Numeric
+// Uses point dipole angular eigenfunctions Omega_N(k_hat) instead of Y_lm(k_hat)
+// to reconstruct the directional continuum wavefunction.
 std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipoleNumeric(
     const Dyson& dyson_L,
     const Dyson& dyson_R,
@@ -721,100 +838,126 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipoleNumeric(
 ) {
     std::vector<BetaResult> results;
     const double HARTREE_EV = 27.211386;
-    PointDipole pd(dipole_strength);
 
-    std::vector<std::vector<std::vector<std::complex<double>>>> matrices_L;
-    std::vector<std::vector<std::vector<std::complex<double>>>> matrices_R;
-    
+    // Compute per-energy overlap data indexed by (m, N)
+    std::vector<PointDipoleOverlapData> data_L, data_R;
+
     for (double E_eV : photoelectron_energies_ev) {
         double E_au = E_eV / HARTREE_EV;
         double k = std::sqrt(2.0 * E_au);
-        if (k < 1e-6) k = 1e-6; 
-        matrices_L.push_back(ComputePointDipoleMatrixElements(dyson_L, grid, k, dipole_strength, l_max));
-        matrices_R.push_back(ComputePointDipoleMatrixElements(dyson_R, grid, k, dipole_strength, l_max));
+        if (k < 1e-6) k = 1e-6;
+        data_L.push_back(ComputePointDipoleOverlaps(dyson_L, grid, k, dipole_strength, l_max));
+        data_R.push_back(ComputePointDipoleOverlaps(dyson_R, grid, k, dipole_strength, l_max));
     }
 
-    double pol_lab[3] = {0.0, 0.0, 1.0};      
-    double k_par_lab[3] = {0.0, 0.0, 1.0};    
-    double k_perp1_lab[3] = {1.0, 0.0, 0.0};  
+    double pol_lab[3] = {0.0, 0.0, 1.0};
+    double k_par_lab[3] = {0.0, 0.0, 1.0};
+    double k_perp1_lab[3] = {1.0, 0.0, 0.0};
     double k_perp2_lab[3] = {0.0, 1.0, 0.0};
-    
+
     for(size_t ie=0; ie<photoelectron_energies_ev.size(); ++ie) {
         double E_eV = photoelectron_energies_ev[ie];
-        const auto& C_L = matrices_L[ie]; 
-        const auto& C_R = matrices_R[ie];
-        
+        const auto& dL = data_L[ie];
+        const auto& dR = data_R[ie];
+
         double sum_sigma_par = 0.0;
         double sum_sigma_perp = 0.0;
-        
+
         #pragma omp parallel for reduction(+:sum_sigma_par, sum_sigma_perp)
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            R.SetFromEuler(orient.alpha, orient.beta, orient.gamma);
-            RotationMatrix RT = R.Transpose(); 
-            
+            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            R.SetFromEuler(orient.alpha, orient.beta, orient.alpha);
+            RotationMatrix RT = R.Transpose();
+
             double eps_body[3] = {pol_lab[0], pol_lab[1], pol_lab[2]};
             RT.Apply(eps_body[0], eps_body[1], eps_body[2]);
-            
-            // Spherical Pol
+
+            // Spherical polarization components
             std::complex<double> eps_sph[3];
-            eps_sph[0] = (eps_body[0] - std::complex<double>(0,1)*eps_body[1]) / std::sqrt(2.0); // m=-1
-            eps_sph[1] = eps_body[2]; // m=0
-            eps_sph[2] = -(eps_body[0] + std::complex<double>(0,1)*eps_body[1]) / std::sqrt(2.0); // m=1
-            
-            auto ComputeAmp = [&](const double* k_lab, const std::vector<std::vector<std::complex<double>>>& C) -> std::complex<double> {
+            eps_sph[0] = (eps_body[0] - std::complex<double>(0,1)*eps_body[1]) / std::sqrt(2.0); // mu=-1
+            eps_sph[1] = eps_body[2]; // mu=0
+            eps_sph[2] = -(eps_body[0] + std::complex<double>(0,1)*eps_body[1]) / std::sqrt(2.0); // mu=1
+
+            // Compute amplitude using point dipole angular eigenfunctions
+            // A(k_hat) = Sum_{m,N} Omega_N^(m)(k_hat) * i^L_N * O_{m,N} . eps
+            auto ComputeAmp = [&](const double* k_lab, const PointDipoleOverlapData& data) -> std::complex<double> {
                 double k_body[3] = {k_lab[0], k_lab[1], k_lab[2]};
                 RT.Apply(k_body[0], k_body[1], k_body[2]);
-                
+
                 double r = std::sqrt(k_body[0]*k_body[0] + k_body[1]*k_body[1] + k_body[2]*k_body[2]);
                 if (r < 1e-12) return 0.0;
                 double theta = std::acos(k_body[2]/r);
                 double phi = std::atan2(k_body[1], k_body[0]);
-                
+
                 std::complex<double> total_amp = 0.0;
-                
-                // Point Dipole expansion: Sum_{l_in, m} Y_{l_in, m}(k) * T_{l_in, m, eps}
-                // C structure is [l_in * l_in + (l_in+m)][mu+1]
-                int idx = 0;
-                for(int l_in=0; l_in<=l_max; ++l_in) {
-                    for(int m=-l_in; m<=l_in; ++m) {
-                        std::complex<double> Ylm = MathSpecial::SphericalHarmonicY(l_in, m, theta, phi);
-                        
-                        // Dot Product T . eps
-                        std::complex<double> T_dot_eps = C[idx][0]*eps_sph[0] + C[idx][1]*eps_sph[1] + C[idx][2]*eps_sph[2];
-                        
-                        total_amp += Ylm * T_dot_eps;
-                        idx++;
+
+                // Loop over m (conserved quantum number)
+                for (int m = -l_max; m <= l_max; ++m) {
+                    int m_idx = m + l_max;
+                    const auto& sys = data.eigsys[m_idx];
+                    int n_modes = sys.l_vals.size();
+                    if (n_modes == 0) continue;
+
+                    // Precompute Y_lm(k_hat) for all l in this m-block
+                    std::vector<std::complex<double>> Y_k(n_modes);
+                    for (int j = 0; j < n_modes; ++j) {
+                        Y_k[j] = MathSpecial::SphericalHarmonicY(sys.l_vals[j], m, theta, phi);
+                    }
+
+                    // Loop over eigenmodes N
+                    for (int N = 0; N < n_modes; ++N) {
+                        double eigval = sys.eigvals[N];
+                        if (eigval < -0.25) continue;
+                        double L_eff = 0.5 * (-1.0 + std::sqrt(1.0 + 4.0 * eigval));
+
+                        // Phase factor i^L_eff
+                        std::complex<double> phase = std::exp(std::complex<double>(0.0, M_PI * 0.5 * L_eff));
+
+                        // Point dipole angular eigenfunction at k_hat direction
+                        // Omega_N^(m)(k_hat) = sum_l c_l^N * Y_{l,m}(k_hat)
+                        std::complex<double> omega_k = 0.0;
+                        for (int j = 0; j < n_modes; ++j) {
+                            omega_k += sys.eigvecs[j][N] * Y_k[j];
+                        }
+
+                        // Dot overlap with polarization
+                        std::complex<double> O_dot_eps =
+                            data.overlaps[m_idx][N][0] * eps_sph[0] +
+                            data.overlaps[m_idx][N][1] * eps_sph[1] +
+                            data.overlaps[m_idx][N][2] * eps_sph[2];
+
+                        total_amp += omega_k * phase * O_dot_eps;
                     }
                 }
                 return total_amp;
             };
-            
-            std::complex<double> A_par_L = ComputeAmp(k_par_lab, C_L);
-            std::complex<double> A_par_R = ComputeAmp(k_par_lab, C_R);
+
+            std::complex<double> A_par_L = ComputeAmp(k_par_lab, dL);
+            std::complex<double> A_par_R = ComputeAmp(k_par_lab, dR);
             double sig_par = std::real(A_par_L * std::conj(A_par_R));
-            
-            std::complex<double> A_perp1_L = ComputeAmp(k_perp1_lab, C_L);
-            std::complex<double> A_perp1_R = ComputeAmp(k_perp1_lab, C_R);
-            std::complex<double> A_perp2_L = ComputeAmp(k_perp2_lab, C_L);
-            std::complex<double> A_perp2_R = ComputeAmp(k_perp2_lab, C_R);
+
+            std::complex<double> A_perp1_L = ComputeAmp(k_perp1_lab, dL);
+            std::complex<double> A_perp1_R = ComputeAmp(k_perp1_lab, dR);
+            std::complex<double> A_perp2_L = ComputeAmp(k_perp2_lab, dL);
+            std::complex<double> A_perp2_R = ComputeAmp(k_perp2_lab, dR);
             double sig_perp = 0.5 * (std::real(A_perp1_L * std::conj(A_perp1_R)) + std::real(A_perp2_L * std::conj(A_perp2_R)));
-            
+
             sum_sigma_par += sig_par * orient.weight;
             sum_sigma_perp += sig_perp * orient.weight;
         }
-        
+
         double norms = dyson_L.qchem_norm * dyson_R.qchem_norm;
         double sigma_par = sum_sigma_par * norms;
         double sigma_perp = sum_sigma_perp * norms;
-        
+
         double denom = sigma_par + 2.0 * sigma_perp;
         double beta = 0.0;
         if (std::abs(denom) > 1e-15) {
             beta = 2.0 * (sigma_par - sigma_perp) / denom;
         }
-        
+
         results.push_back({E_eV, sigma_par, sigma_perp, beta});
     }
     return results;
@@ -878,7 +1021,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipole(
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            R.SetFromEuler(orient.alpha, orient.beta, orient.gamma);
+            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            R.SetFromEuler(orient.alpha, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose(); // Lab to Body
             
             // Lab Polarization in Body Frame
@@ -957,4 +1101,270 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipole(
     }
     
     return results;
+}
+
+// ============================================================
+// Physical Dipole Analytic Averaging
+// ============================================================
+// Mirrors ComputePointDipoleMatrixElements exactly:
+//   1. Solve physical dipole angular eigensystem → eigenvalues & eigenvectors
+//   2. Convert eigenvectors from P_l^|m| basis to Y_lm basis: d_l = c_l * sqrt(S_ll)
+//   3. Map eigenvalues to point-dipole convention: Alm = -lambda → L_eff
+//   4. Compute overlaps using j_{L_eff}(kr) * Omega_N*(r) in spherical coords
+//   5. Assembly: T_{l_in,m,mu} = sum_N d_{l_in}^N * i^{L_eff_N} * O_{m,N,mu}
+//   6. Pass to ComputeBetaFromMatrixElements for CG averaging
+//
+// The only input from the physical dipole is the ANGULAR eigensystem.
+// Radial functions use standard spherical Bessel j_{L_eff}(kr), same as point dipole.
+
+// Helper: compute S_ll = 2*(l+|m|)! / ((2l+1)*(l-|m|)!) for Plm normalization
+static double ComputeS_ll(int l, int abs_m) {
+    // (l+|m|)!/(l-|m|)! = product_{k=l-|m|+1}^{l+|m|} k
+    double fact_ratio = 1.0;
+    for (int k = l - abs_m + 1; k <= l + abs_m; ++k)
+        fact_ratio *= static_cast<double>(k);
+    return 2.0 * fact_ratio / (2.0 * l + 1.0);
+}
+
+// Holds the physical dipole angular eigensystem converted to point-dipole conventions
+struct PhysDipoleEigen {
+    std::vector<double> eigvals_pd;       // Point-dipole-convention eigenvalues (Alm = -lambda)
+    std::vector<std::complex<double>> L_eff; // Effective angular momentum (complex for supercritical)
+    std::vector<std::vector<double>> eigvecs_ylm; // Eigenvectors converted to Y_lm basis [basis_idx][mode]
+    std::vector<int> l_vals;              // l values for basis functions
+};
+
+static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnalyticME(
+    const Dyson& dyson,
+    const UniformGrid& grid,
+    double eKE_au,
+    double dipole_strength,
+    double dipole_length,
+    const std::vector<double>& /*dipole_axis*/,
+    const std::vector<double>& /*dipole_center*/,
+    int l_max
+) {
+    int num_lm = (l_max + 1) * (l_max + 1);
+    std::vector<std::vector<std::complex<double>>> moments(
+        num_lm, std::vector<std::complex<double>>(3, {0.0, 0.0}));
+
+    if (eKE_au <= 0) return moments;
+
+    double k = std::sqrt(2.0 * eKE_au);
+    double D_phys = 0.5 * dipole_strength;  // Physical dipole convention: D_sph = 0.5 * D_cli
+    double dV = grid.dx * grid.dy * grid.dz;
+
+    // 1. Solve physical dipole angular eigensystem for each m,
+    //    and convert to point-dipole conventions.
+    std::vector<PhysDipoleEigen> eigen_sys(2 * l_max + 1);
+
+    for (int lam = -l_max; lam <= l_max; ++lam) {
+        auto [eigvals, eigvecs, l_vals] = PhysicalDipoleAngular::Solve(
+            lam, l_max, eKE_au, dipole_length, D_phys);
+
+        PhysDipoleEigen& pe = eigen_sys[lam + l_max];
+        pe.l_vals = l_vals;
+        int n_modes = (int)eigvals.size();
+        int n_basis = (int)l_vals.size();
+        pe.eigvals_pd.resize(n_modes);
+        pe.L_eff.resize(n_modes);
+        pe.eigvecs_ylm = eigvecs; // Copy, then convert in-place
+
+        int abs_m = std::abs(lam);
+
+        // Convert eigenvalues: physical dipole lambda → point-dipole Alm = -lambda
+        // Compute L_eff = 0.5*(-1 + sqrt(1 + 4*Alm))
+        // For supercritical modes (disc < 0), L_eff is complex.
+        for (int n = 0; n < n_modes; ++n) {
+            pe.eigvals_pd[n] = -eigvals[n]; // Alm
+            double disc = 1.0 + 4.0 * pe.eigvals_pd[n];
+            if (disc >= 0) {
+                pe.L_eff[n] = std::complex<double>(0.5 * (-1.0 + std::sqrt(disc)), 0.0);
+            } else {
+                // Supercritical: L_eff = -0.5 + i*sqrt(|disc|)/2
+                pe.L_eff[n] = std::complex<double>(-0.5, 0.5 * std::sqrt(-disc));
+            }
+        }
+
+        // Convert eigenvectors from P_l^|m| basis to Y_lm basis:
+        // d_l = c_l * sqrt(S_ll) * gauge_factor
+        //
+        // Gauge fix: The physical dipole off-diagonal coupling is always negative,
+        // while the point dipole coupling picks up (-1)^m from 3j symbols.
+        // For odd m, the coupling signs differ, producing eigenvectors in a
+        // different gauge. Apply (-1)^{l-|m|} for odd |m| to align conventions.
+        for (int i = 0; i < n_basis; ++i) {
+            int l = l_vals[i];
+            double conv = std::sqrt(ComputeS_ll(l, abs_m));
+            // Gauge: for odd |m|, flip sign of every other basis function
+            if (abs_m % 2 != 0) {
+                int gauge_exp = (l - abs_m);
+                if (gauge_exp % 2 != 0) conv = -conv;
+            }
+            for (int n = 0; n < n_modes; ++n) {
+                pe.eigvecs_ylm[i][n] *= conv;
+            }
+        }
+
+    }
+
+    // 2. Compute overlaps O_{m, N, mu} using j_{L_eff}(kr) * Omega_N*(r_hat)
+    //    This is IDENTICAL to ComputePointDipoleMatrixElements grid loop.
+    std::vector<std::vector<std::vector<std::complex<double>>>> overlaps(2 * l_max + 1);
+
+    for (int lam = -l_max; lam <= l_max; ++lam) {
+        int n_modes = (int)eigen_sys[lam + l_max].eigvals_pd.size();
+        overlaps[lam + l_max].resize(n_modes, std::vector<std::complex<double>>(3, {0.0, 0.0}));
+    }
+
+    #pragma omp parallel
+    {
+        auto local_overlaps = overlaps;
+        for (auto& v1 : local_overlaps) for (auto& v2 : v1) for (auto& val : v2) val = {0.0, 0.0};
+
+        #pragma omp for
+        for (int ix = 0; ix < grid.nx; ++ix) {
+            for (int iy = 0; iy < grid.ny; ++iy) {
+                for (int iz = 0; iz < grid.nz; ++iz) {
+                    double x = grid.xmin + ix * grid.dx;
+                    double y = grid.ymin + iy * grid.dy;
+                    double z = grid.zmin + iz * grid.dz;
+
+                    double dyson_val = dyson.evaluate(x, y, z);
+                    if (std::abs(dyson_val) < 1e-12) continue;
+
+                    double r = std::sqrt(x * x + y * y + z * z);
+                    if (r < 1e-10) continue;
+
+                    double theta = std::acos(z / r);
+                    double phi = std::atan2(y, x);
+
+                    // Spherical dipole components r * Y_1^mu*(r_hat)
+                    std::complex<double> Y1_m1 = MathSpecial::SphericalHarmonicY(1, -1, theta, phi);
+                    std::complex<double> Y1_0  = MathSpecial::SphericalHarmonicY(1, 0,  theta, phi);
+                    std::complex<double> Y1_1  = MathSpecial::SphericalHarmonicY(1, 1,  theta, phi);
+                    std::complex<double> dip[3];
+                    dip[0] = r * std::conj(Y1_m1);
+                    dip[1] = r * std::conj(Y1_0);
+                    dip[2] = r * std::conj(Y1_1);
+
+                    for (int lam = -l_max; lam <= l_max; ++lam) {
+                        const auto& pe = eigen_sys[lam + l_max];
+                        int n_modes = (int)pe.eigvals_pd.size();
+
+                        // Precompute Y_{l,lam}*(r_hat) for all basis functions
+                        std::vector<std::complex<double>> Y_vals(pe.l_vals.size());
+                        for (size_t i = 0; i < pe.l_vals.size(); ++i) {
+                            Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(
+                                pe.l_vals[i], lam, theta, phi));
+                        }
+
+                        for (int N = 0; N < n_modes; ++N) {
+                            // Radial: j_{L_eff}(kr) — complex-order for supercritical
+                            std::complex<double> radial_c = MathSpecial::SphericalBesselJComplex(pe.L_eff[N], k * r);
+
+                            // Angular: Omega_N*(r_hat) = sum_l d_l^N * Y_{l,lam}*(r_hat)
+                            std::complex<double> omega_r = 0.0;
+                            for (size_t i = 0; i < pe.l_vals.size(); ++i) {
+                                omega_r += pe.eigvecs_ylm[i][N] * Y_vals[i];
+                            }
+
+                            // Overlap fragment (radial is now complex for supercritical)
+                            std::complex<double> fragment = radial_c * omega_r * dyson_val * dV;
+
+                            for (int mu = 0; mu < 3; ++mu) {
+                                local_overlaps[lam + l_max][N][mu] += fragment * dip[mu];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #pragma omp critical
+        {
+            for (size_t i = 0; i < overlaps.size(); ++i) {
+                for (size_t j = 0; j < overlaps[i].size(); ++j) {
+                    for (int mu = 0; mu < 3; ++mu) {
+                        overlaps[i][j][mu] += local_overlaps[i][j][mu];
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Assembly: T_{l_in, m, mu} = sum_N d_{l_in}^N * i^{L_eff_N} * O_{m, N, mu}
+    //    Identical to ComputePointDipoleMatrixElements assembly.
+    for (int l_in = 0; l_in <= l_max; ++l_in) {
+        for (int m = -l_in; m <= l_in; ++m) {
+            int idx = l_in * l_in + (l_in + m);
+
+            const auto& pe = eigen_sys[m + l_max];
+            int n_modes = (int)pe.eigvals_pd.size();
+
+            // Find index of l_in in pe.l_vals
+            int l_idx_in = -1;
+            for (size_t kk = 0; kk < pe.l_vals.size(); ++kk) {
+                if (pe.l_vals[kk] == l_in) { l_idx_in = (int)kk; break; }
+            }
+            if (l_idx_in == -1) continue;
+
+            for (int N = 0; N < n_modes; ++N) {
+                // Phase: i^{L_eff} (complex L_eff handled naturally)
+                std::complex<double> phase = std::exp(
+                    std::complex<double>(0.0, 1.0) * (M_PI * 0.5 * pe.L_eff[N]));
+
+                // Y_lm coefficient of mode N at l_in (already converted)
+                double d_lin = pe.eigvecs_ylm[l_idx_in][N];
+
+                std::complex<double> weight = d_lin * phase;
+
+                for (int mu = 0; mu < 3; ++mu) {
+                    moments[idx][mu] += weight * overlaps[m + l_max][N][mu];
+                }
+            }
+        }
+    }
+
+    return moments;
+}
+
+std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipoleAnalytic(
+    const Dyson& dyson_L,
+    const Dyson& dyson_R,
+    const UniformGrid& grid,
+    const std::vector<double>& photoelectron_energies_ev,
+    double dipole_strength,
+    double dipole_length,
+    const std::vector<double>& dipole_axis,
+    const std::vector<double>& dipole_center,
+    int l_max
+) {
+    const double HARTREE_EV = 27.211386;
+    std::vector<std::vector<std::vector<std::complex<double>>>> matrices_L, matrices_R;
+
+    for (double E_eV : photoelectron_energies_ev) {
+        double eKE_au = E_eV / HARTREE_EV;
+
+        if (eKE_au <= 0) {
+            int num_lm = (l_max + 1) * (l_max + 1);
+            matrices_L.push_back(std::vector<std::vector<std::complex<double>>>(
+                num_lm, std::vector<std::complex<double>>(3, 0.0)));
+            matrices_R.push_back(std::vector<std::vector<std::complex<double>>>(
+                num_lm, std::vector<std::complex<double>>(3, 0.0)));
+            continue;
+        }
+
+        // Compute Y_lm matrix elements separately for L and R Dyson orbitals
+        matrices_L.push_back(ComputePhysicalDipoleAnalyticME(
+            dyson_L, grid, eKE_au, dipole_strength, dipole_length,
+            dipole_axis, dipole_center, l_max));
+        matrices_R.push_back(ComputePhysicalDipoleAnalyticME(
+            dyson_R, grid, eKE_au, dipole_strength, dipole_length,
+            dipole_axis, dipole_center, l_max));
+    }
+
+    double norm_sq = dyson_L.qchem_norm * dyson_R.qchem_norm;
+    return ComputeBetaFromMatrixElements(
+        matrices_L, matrices_R, photoelectron_energies_ev, norm_sq, l_max);
 }

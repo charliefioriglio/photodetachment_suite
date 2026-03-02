@@ -150,6 +150,9 @@ def main():
         if not os.path.exists("cpp_input.dat"):
             print("Error: 'cpp_input.dat' not found. Ensure Dyson generation step ran successfully.")
             sys.exit(1)
+        
+        # Model (needed for beta_gen flags regardless of generation step)
+        model = calc_cfg.get("model", "point_dipole").lower()
             
         # Prepare Dipole List
         dipole_list = calc_cfg.get("dipole_list")
@@ -166,7 +169,7 @@ def main():
             flags.extend([str(e) for e in energies])
             
         # Points
-        pts = calc_cfg.get("points", 150)
+        pts = calc_cfg.get("points", 100)
         flags.extend(["--points", str(pts)])
         
         # L-Max (override)

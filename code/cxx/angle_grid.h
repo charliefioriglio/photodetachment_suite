@@ -23,13 +23,8 @@ public:
     
     AngleGrid();
     
-    // Grid Generation Methods (Clears existing points)
-    void GenerateHardcoded(); // Full 150 points from reference
-    void GenerateGeometric(int n_alpha, int n_beta); // Uniform grid
+    // Grid Generation (Clears existing points)
     void GenerateRepulsion(int n_points, int seed=1234); // Fibonacci + Repulsion
-    
-    // Modifiers
-    void ApplyGammaSampling(int n_gamma); // Expands current grid with gamma values [0, pi]
     
     // I/O
     void LoadFromFile(const std::string& filename); 
