@@ -61,7 +61,7 @@ Comments are not supported by .json files and are only for instructions here.
     # "vib_file": "vib_data.txt",    This will trigger relative cross section calcualtion
   },
   "calculation": {
-    "do_calculation": true,        # True will calculate total cross sections
+    "do_calculation": true,        # If true will run the calculation
     "type": "beta",                # Beta or cross section
     "model": "physical_dipole",    # pwe, point_dipole, physical_dipole, eikr
     "dipole_list": [0.0, 0.2, 0.57],
@@ -69,8 +69,8 @@ Comments are not supported by .json files and are only for instructions here.
     "ie": 3.977,                   # Ionization energy
     "energies": [0.05, 0.1, 0.2, 0.5],
     "l_max": 5,                    # Maximum terms in anulgar momentum expansion of continuum
-    "points": 50,                  # Number of points for averaging, calculated with REPULSION algorithm. Leaving black will default 150 hardcoded angles.
-    # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe and point dipole) to use numeric averaging
+    "points": 50,                  # Number of points for averaging, calculated with REPULSION algorithm. Leaving black will default 100 angles.
+    # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe, point dipole, and physical dipole) to use numeric averaging
     "output_csv": "cn_beta_phys.csv"
   },
   "visualization": { "do_plot": false },

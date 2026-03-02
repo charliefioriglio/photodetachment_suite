@@ -70,13 +70,13 @@ Controls the scattering calculation.
 | `l_max`             | Int      | Max Angular Momentum for expansion. Use 4-5 for Point Dipole/Physical Dipole.                                  | 4                  |
 | `dipole`            | Float    | Dipole moment (a.u.). Used only if model is `point_dipole` or `physical_dipole`.                               | 0.6                |
 | `dipole_list`       | List     | (Optional) List of dipole moments to sweep over. Overrides `dipole`.                                           | [0.0, 0.2, 0.5]    |
-| `points`            | Int      | Number of angular grid points for averaging. 150 (default) uses hardcoded grid.                                | 150                |
+| `points`            | Int      | Number of angular grid points for averaging (Repulsion algorithm). Default: 100.                               | 100                |
 | `output_csv`        | String   | Filename for results. If `dipole_list` is used, filenames will be appended with `_D{dipole}`.                  | "results.csv"      |
 
 *Note on Models*:
 *   `pwe`: Plane Wave Expansion. Defaults to **Analytic Averaging** (fast, exact for D=0). Use `"averaging": "numeric"` to use numerical integration.
 *   `point_dipole`: Point Dipole Model. Defaults to **Analytic Averaging**. Use `"averaging": "numeric"` to use numerical integration.
-*   `physical_dipole`: Physical Finite Dipole Model. Always uses **Numeric Grid Averaging**. Requires `dipole_length`.
+*   `physical_dipole`: Physical Finite Dipole Model. Defaults to **Analytic Averaging**. Use `"averaging": "numeric"` to use numerical integration. Requires `dipole_length`.
 
 ### Section: `visualization`
 Controls the plotting of the Dyson orbital.
@@ -122,7 +122,7 @@ Controls the plotting of the Beta parameter results.
     "ie": 3.977,                   # Ionization energy
     "energies": [0.05, 0.1, 0.2, 0.5],
     "l_max": 5,                    # Maximum terms in anulgar momentum expansion of continuum
-    "points": 50,                  # Number of points for averaging, calculated with REPULSION algorithm. Leaving black will default 150 hardcoded angles.
+    "points": 50,                  # Number of points for averaging, calculated with REPULSION algorithm. Default: 100.
     # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe and point dipole) to use numeric averaging
     "output_csv": "cn_beta_phys.csv"
   },
