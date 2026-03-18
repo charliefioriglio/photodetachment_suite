@@ -93,7 +93,7 @@ public:
 
 private:
     static std::complex<double> ComputeNumericalMatrixElement(
-        const Dyson& dyson,
+        const std::vector<double>& dyson_vals,
         const UniformGrid& grid,
         const double* k_vec,
         const double* pol_vec

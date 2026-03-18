@@ -322,6 +322,10 @@ std::vector<double> CrossSectionCalculator::ComputePointDipoleCrossSection(
             // Zero out
             for(auto& v1 : local_moments) for(auto& v2 : v1) for(auto& m : v2) m = {0.0, 0.0};
             
+            // Thread-local reusable buffer for Y_vals (max size l_max + 1)
+            std::vector<std::complex<double>> Y_vals;
+            Y_vals.reserve(l_max + 1);
+            
             #pragma omp for
             for (int ix = 0; ix < nx; ++ix) {
                 for (int iy = 0; iy < ny; ++iy) {
@@ -350,7 +354,7 @@ std::vector<double> CrossSectionCalculator::ComputePointDipoleCrossSection(
                             
                             // We need Sum_l c_{lN}* Y_{l,lam}*
                             // Optimization: Calculate Y_{l,lam}* for all l first.
-                            std::vector<std::complex<double>> Y_vals(n_modes);
+                            Y_vals.resize(n_modes);
                             for(int i=0; i<n_modes; ++i) {
                                 Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(sys.l_vals[i], lam, theta, phi_ang));
                             }

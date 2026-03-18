@@ -14,6 +14,12 @@ def run_command(cmd, cwd=None):
         sys.exit(1)
 
 def main():
+    # Enforce 1 thread for Python linear algebra libraries to prevent 
+    # oversubscription when calling C++ OpenMP binaries
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
     parser = argparse.ArgumentParser(description="Unified Driver for Dyson Orbital & Beta Calculations")
     parser.add_argument("config_file", help="Path to JSON configuration file")
     args = parser.parse_args()
@@ -22,7 +28,7 @@ def main():
     with open(args.config_file, 'r') as f:
         config = json.load(f)
 
-    qchem_out =config.get("qchem_output")
+    qchem_out = config.get("qchem_output")
     if not qchem_out or not os.path.exists(qchem_out):
         print(f"Error: Q-Chem output file '{qchem_out}' not found.")
         sys.exit(1)

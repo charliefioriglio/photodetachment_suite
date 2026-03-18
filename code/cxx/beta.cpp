@@ -13,7 +13,7 @@
 #include <iostream>
 
 std::complex<double> BetaCalculator::ComputeNumericalMatrixElement(
-    const Dyson& dyson,
+    const std::vector<double>& dyson_vals,
     const UniformGrid& grid,
     const double* k_vec,
     const double* pol_vec
@@ -31,7 +31,8 @@ std::complex<double> BetaCalculator::ComputeNumericalMatrixElement(
             for (int iz = 0; iz < grid.nz; ++iz) {
                 double z = grid.zmin + iz * grid.dz;
                 
-                double dyson_val = dyson.evaluate(x, y, z);
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double dyson_val = dyson_vals[idx];
                 if (std::abs(dyson_val) < 1e-12) continue; 
                 
                 double r_dot_eps = x * pol_vec[0] + y * pol_vec[1] + z * pol_vec[2];
@@ -55,6 +56,22 @@ std::vector<BetaResult> BetaCalculator::CalculateBeta(
 ) {
     std::vector<BetaResult> results;
     const double HARTREE_EV = 27.211386;
+    
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
     
     double pol_lab[3] = {0.0, 0.0, 1.0};      
     double k_par_lab[3] = {0.0, 0.0, 1.0};    
@@ -89,19 +106,19 @@ std::vector<BetaResult> BetaCalculator::CalculateBeta(
             auto k_perp1_mol = rotate_k(k_perp1_lab, k_mag);
             auto k_perp2_mol = rotate_k(k_perp2_lab, k_mag);
             
-            std::complex<double> M_par_L = ComputeNumericalMatrixElement(dyson_L, grid, k_par_mol.data(), pol_mol);
-            std::complex<double> M_par_R = ComputeNumericalMatrixElement(dyson_R, grid, k_par_mol.data(), pol_mol);
+            std::complex<double> M_par_L = ComputeNumericalMatrixElement(phi_L_vals, grid, k_par_mol.data(), pol_mol);
+            std::complex<double> M_par_R = ComputeNumericalMatrixElement(phi_R_vals, grid, k_par_mol.data(), pol_mol);
             
             std::complex<double> A_par_L = M_par_L;
             std::complex<double> A_par_R = std::conj(M_par_R); 
             double sigma_par_orient = std::real(A_par_L * A_par_R);
             
-            std::complex<double> M_perp1_L = ComputeNumericalMatrixElement(dyson_L, grid, k_perp1_mol.data(), pol_mol);
-            std::complex<double> M_perp1_R = ComputeNumericalMatrixElement(dyson_R, grid, k_perp1_mol.data(), pol_mol);
+            std::complex<double> M_perp1_L = ComputeNumericalMatrixElement(phi_L_vals, grid, k_perp1_mol.data(), pol_mol);
+            std::complex<double> M_perp1_R = ComputeNumericalMatrixElement(phi_R_vals, grid, k_perp1_mol.data(), pol_mol);
             double sigma_perp1_orient = std::real(M_perp1_L * std::conj(M_perp1_R));
             
-            std::complex<double> M_perp2_L = ComputeNumericalMatrixElement(dyson_L, grid, k_perp2_mol.data(), pol_mol);
-            std::complex<double> M_perp2_R = ComputeNumericalMatrixElement(dyson_R, grid, k_perp2_mol.data(), pol_mol);
+            std::complex<double> M_perp2_L = ComputeNumericalMatrixElement(phi_L_vals, grid, k_perp2_mol.data(), pol_mol);
+            std::complex<double> M_perp2_R = ComputeNumericalMatrixElement(phi_R_vals, grid, k_perp2_mol.data(), pol_mol);
             double sigma_perp2_orient = std::real(M_perp2_L * std::conj(M_perp2_R));
             
             double sigma_perp_orient = 0.5 * (sigma_perp1_orient + sigma_perp2_orient);
@@ -126,7 +143,7 @@ std::vector<BetaResult> BetaCalculator::CalculateBeta(
 // mu = -1, 0, 1 (Spherical Dipole Component)
 // result[l*(l+1) + m][mu+1]
 std::vector<std::vector<std::complex<double>>> ComputeSphericalMatrixElements(
-    const Dyson& dyson,
+    const std::vector<double>& dyson_vals,
     const UniformGrid& grid,
     double k,
     int l_max
@@ -146,9 +163,10 @@ std::vector<std::vector<std::complex<double>>> ComputeSphericalMatrixElements(
             for (int iy = 0; iy < grid.ny; ++iy) {
                 double y = grid.ymin + iy * grid.dy;
                 for (int iz = 0; iz < grid.nz; ++iz) {
+                    int idx_grid = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
                     double z = grid.zmin + iz * grid.dz;
                     
-                    double dyson_val = dyson.evaluate(x, y, z);
+                    double dyson_val = dyson_vals[idx_grid];
                     if (std::abs(dyson_val) < 1e-12) continue;
                     
                     double r = std::sqrt(x*x + y*y + z*z);
@@ -367,6 +385,22 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaAnalytic(
     
     const double HARTREE_EV = 27.211386;
     
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
+    
     for (double E_eV : photoelectron_energies_ev) {
         double E_au = E_eV / HARTREE_EV;
         double k = std::sqrt(2.0 * E_au);
@@ -379,8 +413,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaAnalytic(
              continue;
         }
 
-        matrices_L.push_back(ComputeSphericalMatrixElements(dyson_L, grid, k, l_max));
-        matrices_R.push_back(ComputeSphericalMatrixElements(dyson_R, grid, k, l_max));
+        matrices_L.push_back(ComputeSphericalMatrixElements(phi_L_vals, grid, k, l_max));
+        matrices_R.push_back(ComputeSphericalMatrixElements(phi_R_vals, grid, k, l_max));
     }
     
     double norm_sq = dyson_L.qchem_norm * dyson_R.qchem_norm;
@@ -392,7 +426,7 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaAnalytic(
 
 // Returns C_{l_in, m, mu}
 std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
-    const Dyson& dyson,
+    const std::vector<double>& dyson_vals,
     const UniformGrid& grid,
     double k,
     double dipole_strength,
@@ -435,6 +469,10 @@ std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
         // Zero out local
         for(auto& v1 : local_overlaps) for(auto& v2 : v1) for(auto& val : v2) val = {0.0, 0.0};
         
+        // Thread-local reusable buffer for Y_vals (max size 2*l_max + 1)
+        std::vector<std::complex<double>> Y_vals;
+        Y_vals.reserve(2 * l_max + 1);
+
         #pragma omp for
         for (int ix = 0; ix < grid.nx; ++ix) {
            for (int iy = 0; iy < grid.ny; ++iy) {
@@ -442,8 +480,9 @@ std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
                  double x = grid.xmin + ix * grid.dx;
                  double y = grid.ymin + iy * grid.dy;
                  double z = grid.zmin + iz * grid.dz;
+                 int idx_grid = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
                  
-                 double dyson_val = dyson.evaluate(x, y, z);
+                 double dyson_val = dyson_vals[idx_grid];
                  if (std::abs(dyson_val) < 1e-12) continue;
                  
                  double r = std::sqrt(x*x + y*y + z*z);
@@ -466,7 +505,7 @@ std::vector<std::vector<std::complex<double>>> ComputePointDipoleMatrixElements(
                       int n_modes = sys.l_vals.size();
                       
                       // Precompute Y_lm(r) for all l in this block
-                      std::vector<std::complex<double>> Y_vals(n_modes);
+                      Y_vals.resize(n_modes);
                       for(int i=0; i<n_modes; ++i) {
                           // Match PWE: Use Conjugate of Y_lm(r)
                           Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(sys.l_vals[i], lam, theta, phi));
@@ -568,6 +607,22 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipole(
     std::vector<std::vector<std::vector<std::complex<double>>>> matrices_L;
     std::vector<std::vector<std::vector<std::complex<double>>>> matrices_R;
     
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
+    
     for(double E_eV : photoelectron_energies_ev) {
          double E_au = E_eV / HARTREE_EV;
          double k = std::sqrt(2.0 * E_au);
@@ -579,8 +634,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipole(
              continue;
          }
          
-         matrices_L.push_back(ComputePointDipoleMatrixElements(dyson_L, grid, k, dipole_strength, l_max));
-         matrices_R.push_back(ComputePointDipoleMatrixElements(dyson_R, grid, k, dipole_strength, l_max));
+         matrices_L.push_back(ComputePointDipoleMatrixElements(phi_L_vals, grid, k, dipole_strength, l_max));
+         matrices_R.push_back(ComputePointDipoleMatrixElements(phi_R_vals, grid, k, dipole_strength, l_max));
     }
     
     double norm_sq = dyson_L.qchem_norm * dyson_R.qchem_norm;
@@ -601,6 +656,22 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPWENumeric(
     
     // Precompute Body-Frame Matrix Elements for all energies
     // Reuse ComputeSphericalMatrixElements
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
+    
     std::vector<std::vector<std::vector<std::complex<double>>>> matrices_L;
     std::vector<std::vector<std::vector<std::complex<double>>>> matrices_R;
     
@@ -608,8 +679,8 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPWENumeric(
         double E_au = E_eV / HARTREE_EV;
         double k = std::sqrt(2.0 * E_au);
         if (k < 1e-6) k = 1e-6; // Avoid zero div
-        matrices_L.push_back(ComputeSphericalMatrixElements(dyson_L, grid, k, l_max));
-        matrices_R.push_back(ComputeSphericalMatrixElements(dyson_R, grid, k, l_max));
+        matrices_L.push_back(ComputeSphericalMatrixElements(phi_L_vals, grid, k, l_max));
+        matrices_R.push_back(ComputeSphericalMatrixElements(phi_R_vals, grid, k, l_max));
     }
     
     // Lab Frame Vectors
@@ -717,7 +788,7 @@ struct PointDipoleOverlapData {
 // Compute raw overlaps O_{m,N,mu} = < phi | r_mu | R_N(kr) Omega_N*(r) >
 // These are the spatial integrals per mode (m, N), WITHOUT the i^L or eigenvector assembly.
 static PointDipoleOverlapData ComputePointDipoleOverlaps(
-    const Dyson& dyson,
+    const std::vector<double>& dyson_vals,
     const UniformGrid& grid,
     double k,
     double dipole_strength,
@@ -742,6 +813,10 @@ static PointDipoleOverlapData ComputePointDipoleOverlaps(
         auto local_overlaps = data.overlaps;
         for(auto& v1 : local_overlaps) for(auto& v2 : v1) for(auto& val : v2) val = {0.0, 0.0};
 
+        // Thread-local reusable buffer for Y_vals
+        std::vector<std::complex<double>> Y_vals;
+        Y_vals.reserve(2 * l_max + 1);
+
         #pragma omp for
         for (int ix = 0; ix < grid.nx; ++ix) {
            for (int iy = 0; iy < grid.ny; ++iy) {
@@ -749,8 +824,9 @@ static PointDipoleOverlapData ComputePointDipoleOverlaps(
                  double x = grid.xmin + ix * grid.dx;
                  double y = grid.ymin + iy * grid.dy;
                  double z = grid.zmin + iz * grid.dz;
+                 int idx_grid = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
 
-                 double dyson_val = dyson.evaluate(x, y, z);
+                 double dyson_val = dyson_vals[idx_grid];
                  if (std::abs(dyson_val) < 1e-12) continue;
 
                  double r = std::sqrt(x*x + y*y + z*z);
@@ -772,7 +848,7 @@ static PointDipoleOverlapData ComputePointDipoleOverlaps(
                       const auto& sys = data.eigsys[lam + l_max];
                       int n_modes = sys.l_vals.size();
 
-                      std::vector<std::complex<double>> Y_vals(n_modes);
+                      Y_vals.resize(n_modes);
                       for(int i=0; i<n_modes; ++i) {
                           Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(sys.l_vals[i], lam, theta, phi));
                       }
@@ -834,13 +910,29 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipoleNumeric(
 
     // Compute per-energy overlap data indexed by (m, N)
     std::vector<PointDipoleOverlapData> data_L, data_R;
+    
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
 
     for (double E_eV : photoelectron_energies_ev) {
         double E_au = E_eV / HARTREE_EV;
         double k = std::sqrt(2.0 * E_au);
         if (k < 1e-6) k = 1e-6;
-        data_L.push_back(ComputePointDipoleOverlaps(dyson_L, grid, k, dipole_strength, l_max));
-        data_R.push_back(ComputePointDipoleOverlaps(dyson_R, grid, k, dipole_strength, l_max));
+        data_L.push_back(ComputePointDipoleOverlaps(phi_L_vals, grid, k, dipole_strength, l_max));
+        data_R.push_back(ComputePointDipoleOverlaps(phi_R_vals, grid, k, dipole_strength, l_max));
     }
 
     double pol_lab[3] = {0.0, 0.0, 1.0};
@@ -1124,7 +1216,7 @@ struct PhysDipoleEigen {
 };
 
 static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnalyticME(
-    const Dyson& dyson,
+    const std::vector<double>& dyson_vals,
     const UniformGrid& grid,
     double eKE_au,
     double dipole_strength,
@@ -1211,6 +1303,10 @@ static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnaly
         auto local_overlaps = overlaps;
         for (auto& v1 : local_overlaps) for (auto& v2 : v1) for (auto& val : v2) val = {0.0, 0.0};
 
+        // Thread-local reusable buffer for Y_vals
+        std::vector<std::complex<double>> Y_vals;
+        Y_vals.reserve(2 * l_max + 1);
+
         #pragma omp for
         for (int ix = 0; ix < grid.nx; ++ix) {
             for (int iy = 0; iy < grid.ny; ++iy) {
@@ -1218,8 +1314,9 @@ static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnaly
                     double x = grid.xmin + ix * grid.dx;
                     double y = grid.ymin + iy * grid.dy;
                     double z = grid.zmin + iz * grid.dz;
+                    int idx_grid = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
 
-                    double dyson_val = dyson.evaluate(x, y, z);
+                    double dyson_val = dyson_vals[idx_grid];
                     if (std::abs(dyson_val) < 1e-12) continue;
 
                     double r = std::sqrt(x * x + y * y + z * z);
@@ -1242,7 +1339,7 @@ static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnaly
                         int n_modes = (int)pe.eigvals_pd.size();
 
                         // Precompute Y_{l,lam}*(r_hat) for all basis functions
-                        std::vector<std::complex<double>> Y_vals(pe.l_vals.size());
+                        Y_vals.resize(pe.l_vals.size());
                         for (size_t i = 0; i < pe.l_vals.size(); ++i) {
                             Y_vals[i] = std::conj(MathSpecial::SphericalHarmonicY(
                                 pe.l_vals[i], lam, theta, phi));
@@ -1332,6 +1429,22 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipoleAnalytic(
     const double HARTREE_EV = 27.211386;
     std::vector<std::vector<std::vector<std::complex<double>>>> matrices_L, matrices_R;
 
+    std::vector<double> phi_L_vals(grid.nx * grid.ny * grid.nz);
+    std::vector<double> phi_R_vals(grid.nx * grid.ny * grid.nz);
+    #pragma omp parallel for collapse(3)
+    for (int ix = 0; ix < grid.nx; ++ix) {
+        for (int iy = 0; iy < grid.ny; ++iy) {
+            for (int iz = 0; iz < grid.nz; ++iz) {
+                int idx = ix * (grid.ny * grid.nz) + iy * grid.nz + iz;
+                double x = grid.xmin + ix * grid.dx;
+                double y = grid.ymin + iy * grid.dy;
+                double z = grid.zmin + iz * grid.dz;
+                phi_L_vals[idx] = dyson_L.evaluate(x, y, z);
+                phi_R_vals[idx] = dyson_R.evaluate(x, y, z);
+            }
+        }
+    }
+
     for (double E_eV : photoelectron_energies_ev) {
         double eKE_au = E_eV / HARTREE_EV;
 
@@ -1346,10 +1459,10 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPhysicalDipoleAnalytic(
 
         // Compute Y_lm matrix elements separately for L and R Dyson orbitals
         matrices_L.push_back(ComputePhysicalDipoleAnalyticME(
-            dyson_L, grid, eKE_au, dipole_strength, dipole_length,
+            phi_L_vals, grid, eKE_au, dipole_strength, dipole_length,
             dipole_axis, dipole_center, l_max));
         matrices_R.push_back(ComputePhysicalDipoleAnalyticME(
-            dyson_R, grid, eKE_au, dipole_strength, dipole_length,
+            phi_R_vals, grid, eKE_au, dipole_strength, dipole_length,
             dipole_axis, dipole_center, l_max));
     }
 

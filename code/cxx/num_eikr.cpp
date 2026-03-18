@@ -99,6 +99,15 @@ void NumEikr::calc_eikr_sq(const UniformGrid& labgrid,
         // Private rotation object per thread
         EzRotation rot_local;
 
+        // Pre-allocate sums for all energies for this thread
+        // These will be reused for each orientation to avoid heap allocations
+        std::vector<std::complex<double>> sumL_par(n_energies, 0.0);
+        std::vector<std::complex<double>> sumR_par(n_energies, 0.0);
+        std::vector<std::complex<double>> sumL_x(n_energies, 0.0);
+        std::vector<std::complex<double>> sumR_x(n_energies, 0.0);
+        std::vector<std::complex<double>> sumL_y(n_energies, 0.0);
+        std::vector<std::complex<double>> sumR_y(n_energies, 0.0);
+
         #pragma omp for
         for (int v = 0; v < n_orientations; ++v) {
             const auto& p = anggrid.points[v];
@@ -109,14 +118,13 @@ void NumEikr::calc_eikr_sq(const UniformGrid& labgrid,
             rot_local.set_euler_zxz_transpose(0.0, p.beta, p.alpha);
             double weight = p.weight;
             
-            // Pre-allocate sums for all energies for this orientation
             // Reset for each orientation
-            std::vector<std::complex<double>> sumL_par(n_energies, 0.0);
-            std::vector<std::complex<double>> sumR_par(n_energies, 0.0);
-            std::vector<std::complex<double>> sumL_x(n_energies, 0.0);
-            std::vector<std::complex<double>> sumR_x(n_energies, 0.0);
-            std::vector<std::complex<double>> sumL_y(n_energies, 0.0);
-            std::vector<std::complex<double>> sumR_y(n_energies, 0.0);
+            std::fill(sumL_par.begin(), sumL_par.end(), 0.0);
+            std::fill(sumR_par.begin(), sumR_par.end(), 0.0);
+            std::fill(sumL_x.begin(), sumL_x.end(), 0.0);
+            std::fill(sumR_x.begin(), sumR_x.end(), 0.0);
+            std::fill(sumL_y.begin(), sumL_y.end(), 0.0);
+            std::fill(sumR_y.begin(), sumR_y.end(), 0.0);
             
             // Loop Spatial Grid
             // Optimization: Iterate flat index if possible, or keep loops

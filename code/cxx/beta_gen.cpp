@@ -3,6 +3,10 @@
 #include <vector>
 #include <string>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "tools.h"
 #include "molecule.h"
 #include "dyson.h"
@@ -215,6 +219,10 @@ int main(int argc, char** argv) {
              }
         }
     }
+
+    #ifdef _OPENMP
+    std::cout << "OpenMP is enabled. Max threads available: " << omp_get_max_threads() << std::endl;
+    #endif
 
     if (use_pwe) {
         if (use_numeric_averaging) {
