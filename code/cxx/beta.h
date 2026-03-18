@@ -1,6 +1,7 @@
 #ifndef BETA_H
 #define BETA_H
 
+#include <complex>
 #include <vector>
 #include "dyson.h"
 #include "grid.h"
