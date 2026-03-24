@@ -364,13 +364,13 @@ if __name__ == "__main__":
             # Use the first state as the base IE for C++ calculation to generate the curve
             
             # Relative XS Mode
-            # Pass the user requested Photon Energies directly to C++
-            # C++ will compute Relative XS using the Vib block.
-            
+            # Keep energy semantics consistent with standard mode:
+            # user provides eKE values, convert to photon energies by adding IE.
+
             # Construct Photon Energy List
             user_e_min, user_e_max, user_n_pts = args.e_range
             pts = int(user_n_pts)
-            e_ph_list = np.linspace(user_e_min, user_e_max, pts)
+            e_ph_list = np.linspace(user_e_min + args.ie, user_e_max + args.ie, pts)
             
             with open(temp_inp, "a") as f:
                 # Format: IE LMAX N_PTS
