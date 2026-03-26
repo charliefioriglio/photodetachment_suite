@@ -100,9 +100,12 @@ def parse_shell(shell_lines, symbol, center_bohr, is_pure):
     return ShellSpec(l, np.array(exps), np.array(coeffs), is_pure, symbol)
 
 def parse_basis(basis_lines, atoms, pure_map):
-    geom_iter = iter(atoms)
-    current_atom = None
+    # In Q-Chem general basis format, blocks are per element symbol, not per atom.
+    # Build a symbol -> shells template map first, then replicate shells to all atoms
+    # with the matching symbol.
+    current_symbol = None
     cursor = 0
+    symbol_shells = {}
     
     while cursor < len(basis_lines):
         line = basis_lines[cursor].strip()
@@ -117,15 +120,14 @@ def parse_basis(basis_lines, atoms, pure_map):
             
         tokens = line.split()
         if len(tokens) == 2 and tokens[1].isdigit() and tokens[0].isalpha():
-            # Atom header
-            try:
-                current_atom = next(geom_iter)
-            except StopIteration:
-                break
+            # Element header, e.g. "Ag 0" or "F 0"
+            current_symbol = tokens[0]
+            if current_symbol not in symbol_shells:
+                symbol_shells[current_symbol] = []
             cursor += 1
             continue
             
-        if current_atom is None:
+        if current_symbol is None:
             cursor += 1
             continue
             
@@ -137,12 +139,28 @@ def parse_basis(basis_lines, atoms, pure_map):
             
             l = ANGULAR_LETTER_TO_L[tokens[0].upper()]
             is_pure = pure_map.get(l, True)
-            
-            shell = parse_shell(block, current_atom.symbol, current_atom.center_bohr, is_pure)
-            current_atom.shells.append(shell)
+
+            # Center is atom-specific and set later when writing output; keep a placeholder.
+            shell = parse_shell(block, current_symbol, np.zeros(3), is_pure)
+            symbol_shells[current_symbol].append(shell)
             continue
             
         cursor += 1
+
+    # Replicate template shells to every atom of that element.
+    for atom in atoms:
+        templates = symbol_shells.get(atom.symbol, [])
+        atom.shells = [
+            ShellSpec(
+                angular_momentum=s.angular_momentum,
+                exponents=np.array(s.exponents, copy=True),
+                coefficients=np.array(s.coefficients, copy=True),
+                is_pure=s.is_pure,
+                symbol=atom.symbol,
+            )
+            for s in templates
+        ]
+
     return atoms
 
 def total_basis_functions(atoms):
