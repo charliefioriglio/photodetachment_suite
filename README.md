@@ -62,6 +62,7 @@ Comments are not supported by .json files and are only for instructions here.
   },
   "calculation": {
     "do_calculation": true,        # If true will run the calculation
+    "skip_beta_gen": false         # If true will only run cross section
     "type": "beta",                # Beta or cross section
     "model": "physical_dipole",    # pwe, point_dipole, physical_dipole, eikr
     "dipole_list": [0.0, 0.2, 0.57],
