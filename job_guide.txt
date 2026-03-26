@@ -62,6 +62,7 @@ Controls the scattering calculation.
 |---------------------|----------|----------------------------------------------------------------------------------------------------------------|--------------------|
 | `do_calculation`    | Boolean  | If true, runs the calculation step.                                                                            | true               |
 | `type`              | String   | "beta" (calculates Beta & Sigma) or "cross_section" (synonym currently).                                    | "beta"             |
+| "skip_beta_generation| String  | "True" if you just want cross section calculation.
 | `model`             | String   | Continuum Model: `point_dipole`, `physical_dipole`, `pwe`.                                                     | "point_dipole"     |
 | `averaging`         | String   | (Optional) Set to "numeric" to force numerical grid integration for PWE/Point Dipole. Default is "analytic".   | "numeric"          |
 | `dipole_length`     | Float    | Dipole length 'a' (a.u.). **Required** if model is `physical_dipole`.                                          | 1.5                |
