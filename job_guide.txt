@@ -3,6 +3,7 @@ Unified Photodetachment Job Workflow Guide
 =========================================
 
 This guide details how to use the `run_job.py` driver to execute complex photodetachment calculations using a single JSON configuration file.
+It serves as the detailed companion to the repository README quick-start section.
 
 1. Step-by-Step Job Execution
 -----------------------------
@@ -19,7 +20,7 @@ To run a new calculation from scratch:
 **Step 3: Run the Job**
    - Execute the driver script:
      ```bash
-     python3 src/python/run_job.py job.json
+  python3 code/python/run_job.py job.json
      ```
 
 **Step 4: Analyze Results**

@@ -74,7 +74,7 @@ std::vector<PureFunction> Shell::get_pure_functions(int l) {
 // Coefficients
 std::vector<PureFunction> Shell::get_pure_d() {
     std::vector<PureFunction> funcs;
-    // dxy, dyz, dz2, dxz, dx2-y2 (Matching Q-Chem/ezDyson/aobasis.C order)
+    // dxy, dyz, dz2, dxz, dx2-y2 (Ordering follows Q-Chem/ezDyson AO convention for interoperability)
     funcs.push_back({ {{1.0, {1,1,0}}} }); // dxy
     funcs.push_back({ {{1.0, {0,1,1}}} }); // dyz
     funcs.push_back({ {{1.0, {0,0,2}}, {-0.5, {2,0,0}}, {-0.5, {0,2,0}}} }); // dz2

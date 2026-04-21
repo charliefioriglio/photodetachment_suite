@@ -953,7 +953,7 @@ std::vector<BetaResult> BetaCalculator::CalculateBetaPointDipoleNumeric(
         for(int i=0; i<int(angle_grid.points.size()); ++i) {
             const auto& orient = angle_grid.points[i];
             RotationMatrix R;
-            // Match ezDyson convention: grid_alpha -> rotation_gamma, rotation_alpha=0
+            // Euler-angle convention aligned with ezDyson for interoperability.
             R.SetFromEuler(orient.alpha, orient.beta, orient.alpha);
             RotationMatrix RT = R.Transpose();
 

@@ -1,15 +1,23 @@
+/*
+    Photodetachment Suite
+
+    Licensing and provenance notice:
+    This file contains logic derived from ezDyson numerical averaging routines.
+    Upstream reference: https://iopenshell.usc.edu/downloads/ezdyson/
+    See project NOTICE for attribution details and citations.
+*/
+
 #include "num_eikr.h"
 #include <cmath>
 #include <iostream>
 #include <cstring>
 #include <array>
 
-// Internal helper for Rotation Logic
+// Internal helper for rotation logic.
 struct EzRotation {
     double mat[9];
 
-    // Calc rotn which is Transpose of Active ZYZ Matrix
-    // Matches ezDyson/rotnmatr.C: EulerRotnMatr(alpha, beta, gamma)
+    // Rotation convention aligned with ezDyson Euler matrix convention.
     void set_euler_zxz_transpose(double alpha, double beta, double gamma) {
         double cosA = std::cos(alpha), sinA = std::sin(alpha);
         double cosB = std::cos(beta), sinB = std::sin(beta);

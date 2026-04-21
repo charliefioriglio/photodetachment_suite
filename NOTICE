@@ -1,0 +1,32 @@
+Photodetachment Suite - Provenance and Attribution
+
+This project includes code and implementation logic derived from ezDyson.
+
+Collaboration and affiliation:
+- Developed in collaboration with the Mabbs Group, Department of Chemistry, Washington University in St. Louis.
+
+Upstream project:
+- ezDyson (USC iOpenShell)
+- https://iopenshell.usc.edu/downloads/ezdyson/
+
+Derived or closely ported components in this repository include:
+- code/cxx/clebsch_gordan.cpp
+- code/cxx/clebsch_gordan.h
+- code/cxx/wigner_3j.h
+- code/cxx/num_eikr.cpp
+- code/cxx/num_eikr.h
+
+Additional interoperability conventions influenced by ezDyson appear in:
+- code/cxx/beta.cpp
+- code/cxx/beta_gen.cpp
+- code/cxx/shell.cpp
+
+Please cite ezDyson as requested by upstream:
+- S. Gozem and A. I. Krylov, "The ezSpectra suite: An easy-to-use toolkit for spectroscopy modeling", WIREs Comput. Mol. Sci., e1546 (2021).
+- S. Gozem, A. O. Gunina, T. Ichino, D. L. Osborn, J. F. Stanton, and A. I. Krylov, J. Phys. Chem. Lett. 6, 4532-4540 (2015).
+
+Project citation guidance:
+- Prior to manuscript publication, cite the repository and reference the manuscript as "in preparation".
+- After publication, add the full paper citation and DOI to this NOTICE and to README.
+
+Original contributions in this project include workflow integration, continuum model extensions, averaging options, automation, and visualization.

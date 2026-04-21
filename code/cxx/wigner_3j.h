@@ -1,3 +1,12 @@
+/*
+    Photodetachment Suite
+
+    Licensing and provenance notice:
+    This file depends on Clebsch-Gordan table data/logic derived from ezDyson.
+    Upstream reference: https://iopenshell.usc.edu/downloads/ezdyson/
+    See project NOTICE for attribution details and citations.
+*/
+
 #ifndef WIGNER_3J_H
 #define WIGNER_3J_H
 

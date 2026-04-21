@@ -39,78 +39,44 @@ This produces `dyson_gen` and `beta_gen` in the root directory.
 
 ## Usage
 
-The primary workflow is driven by `code/python/run_job.py` using a JSON config file.
+The primary workflow is driven by `code/python/run_job.py` using a JSON configuration file.
+
+### Quick Start
+
+1. Prepare a Q-Chem output file with Dyson orbital data.
+2. Create a job configuration JSON (for example, `job.json`).
+3. Run:
 
 ```bash
 python3 code/python/run_job.py job.json
 ```
 
-### Example Configuration (`job.json`)
-**Remove all # from the file you run!**
-Comments are not supported by .json files and are only for instructions here.
+4. Review generated CSV and optional plot outputs.
 
-```json
-{
-  "qchem_output": "data/CN.out",   # Dyson Orbital from Q-Chem Output File
-  "dyson": {
-    "do_generation": true,         # True, unless DO is already compliled
-    "indices": [0, 1],             # Left and Right | Allows you to handle .out files with multiple transitions
-    "grid_step": 0.3,              # Grid Spacing
-    "padding": 20.0,               # Grid Size
-    "output_bin": "cn_dyson.bin"
-    # "vib_file": "vib_data.txt",    This will trigger relative cross section calcualtion
-  },
-  "calculation": {
-    "do_calculation": true,        # If true will run the calculation
-    "skip_beta_gen": false         # If true will only run cross section
-    "type": "beta",                # Beta or cross section
-    "model": "physical_dipole",    # pwe, point_dipole, physical_dipole, eikr
-    "dipole_list": [0.0, 0.2, 0.57],
-    "dipole_length": 1.5,          # Only for physical dipole
-    "ie": 3.977,                   # Ionization energy
-    "energies": [0.05, 0.1, 0.2, 0.5],
-    "l_max": 5,                    # Maximum terms in anulgar momentum expansion of continuum
-    "points": 50,                  # Number of points for averaging, calculated with REPULSION algorithm. Leaving black will default 100 angles.
-    # "averaging": numeric           Include and set to numeric to force continuum models with analytic options (pwe, point dipole, and physical dipole) to use numeric averaging
-    "output_csv": "cn_beta_phys.csv"
-  },
-  "visualization": { "do_plot": false },
-  "beta_plot": {
-    "do_plot": true,
-    "output_image": "cn_beta_plot.png",
-    "show": true
-  }
-}
+For full configuration details, option tables, and complete examples, see [job_guide.txt](job_guide.txt).
 
-```
-**Real Test**
-```json
-{
-  "qchem_output": "Test Dyson Orbitals/CN.out",
-  "dyson": {
-    "do_generation": true,
-    "indices": [0, 1],
-    "grid_step": 0.3,
-    "padding": 20.0,
-    "output_bin": "cn_dyson.bin"
-  },
+## Documentation
 
-  "calculation": {
-    "do_calculation": true,
-    "type": "beta",
-    "model": "pwe",
-    "ie": 3.977,
-    "energies": [0.05, 0.1, 0.2, 0.5],
-    "l_max": 3,
-    "points": 50,
-    "output_csv": "cn_beta.csv"
-  },
-  "visualization": { "do_plot": true},
-  "beta_plot": {
-    "plot": true,
-    "output_image": "beta_plot.png",
-    "show": true
-  }
-}
-```
-For a comprehensive guide on all configuration options, see `job_guide.txt`.
+- Full workflow and configuration reference: [job_guide.txt](job_guide.txt)
+- Core implementation: `code/cxx/`
+- Python driver and helpers: `code/python/`
+
+## License and Attribution
+
+This project is distributed under the GNU General Public License (GPL).
+See `LICENSE` for terms.
+
+### Provenance
+
+This codebase includes components derived from ezDyson.
+See `NOTICE` for file-level provenance, credit, and citation details.
+
+### Citation
+
+If you use this software in research, please cite this project and the ezDyson references listed in `NOTICE`.
+
+For work completed before manuscript submission/publication, cite the software repository and reference the manuscript as "in preparation" where appropriate. After publication, add the full paper citation (authors, journal, year, DOI) in this README and in `NOTICE`.
+
+### Collaboration
+
+This work is being developed in collaboration with the Mabbs Group, Department of Chemistry, Washington University in St. Louis.

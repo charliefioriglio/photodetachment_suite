@@ -1,3 +1,12 @@
+/*
+  Photodetachment Suite
+
+  Licensing and provenance notice:
+  This file contains data/logic derived from ezDyson.
+  Upstream reference: https://iopenshell.usc.edu/downloads/ezdyson/
+  See project NOTICE for attribution details and citations.
+*/
+
 #include "clebsch_gordan.h"
 #include <string.h>
 

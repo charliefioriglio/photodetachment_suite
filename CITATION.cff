@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: Photodetachment Suite
+message: "If you use this software, please cite the repository and related publications listed in NOTICE."
+type: software
+authors:
+  - family-names: Fioriglio
+    given-names: Charles
+repository-code: "https://github.com/charliefioriglio/photodetachment_suite"
+license: GPL-3.0-or-later
+abstract: >-
+  A C++/Python toolkit for photodetachment cross sections and PAD observables from
+  Dyson orbitals, including plane-wave, point-dipole, and physical-dipole
+  continuum models with analytic and numerical orientational averaging.
+keywords:
+  - photodetachment
+  - dyson orbitals
+  - photoelectron angular distributions
+  - continuum models
+  - computational chemistry
+notes: >-
+  Collaboration: Mabbs Group, Department of Chemistry, Washington University in
+  St. Louis. Add manuscript DOI and full publication metadata after acceptance.

@@ -1,3 +1,12 @@
+/*
+    Photodetachment Suite
+
+    Licensing and provenance notice:
+    This file contains logic derived from ezDyson numerical averaging routines.
+    Upstream reference: https://iopenshell.usc.edu/downloads/ezdyson/
+    See project NOTICE for attribution details and citations.
+*/
+
 #ifndef NUM_EIKR_H
 #define NUM_EIKR_H
 
@@ -7,8 +16,8 @@
 #include "angle_grid.h"
 #include "grid.h"
 
-// Class for computing cross sections with numerical REPULSION averaging
-// Logic ported from ezDyson/eikr.C
+// Class for computing cross sections with numerical REPULSION averaging.
+// Provenance: implementation follows ezDyson eikr workflow and conventions.
 class NumEikr {
 public:
     NumEikr();

@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
             }
         }
     } else {
-        // Use NumEikr for optimized calculation (ezDyson logic)
+        // Uses NumEikr implementation derived from ezDyson numerical averaging workflow; see NOTICE.
         std::cout << "Calculating Beta parameters using NumEikr ..." << std::endl;
         NumEikr num_eikr;
         num_eikr.compute(grid, L, R, angle_grid, beta_energies);
