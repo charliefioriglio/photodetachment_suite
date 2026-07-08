@@ -1350,7 +1350,7 @@ static std::vector<std::vector<std::complex<double>>> ComputePhysicalDipoleAnaly
             }
             
             // Calculate actual physical dipole radial index nu
-            pe.nu[n] = PhysicalDipoleRadial::SolveNu(c, abs_m, pe.eigvals_pd[n], -eigvals_c0[n]);
+            pe.nu[n] = PhysicalDipoleRadial::SolveNu(c, abs_m, pe.eigvals_pd[n], -eigvals_c0[n], dipole_length, D_phys, n);
             pe.gamma_L_eff[n] = MathSpecial::ComplexGamma(pe.L_eff[n] + 1.5);
             pe.gamma_nu[n] = MathSpecial::ComplexGamma(pe.nu[n] + 1.5);
         }

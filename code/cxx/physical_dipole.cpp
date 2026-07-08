@@ -520,7 +520,7 @@ Complex PhysicalDipoleRadial::CharacteristicEq(Complex nu, double c, int m,
 
 // Helper: check if nu is near a half-integer singularity
 static bool IsHalfInteger(Complex z, double eps = 0.03) {
-  if (std::abs(z.imag()) > eps)
+  if (std::abs(z.imag()) > 1e-5)
     return false; // Complex nu can't be a half-integer singularity
   double r = z.real();
   // Check if r is close to n + 0.5 for any integer n
@@ -529,73 +529,168 @@ static bool IsHalfInteger(Complex z, double eps = 0.03) {
 }
 
 Complex PhysicalDipoleRadial::SolveNu(double target_c, int m, double Alm,
-                                      double Alm_c0) {
+                                      double Alm_c0, double a, double D_phys, int n) {
   // Compute L_eff at c=0 using Alm_c0 as starting point
   double disc = 1.0 + 4.0 * Alm_c0;
-  Complex L_eff;
+  Complex nu_start;
   if (disc >= 0) {
-    L_eff = Complex(0.5 * (-1.0 + std::sqrt(disc)), 0.0);
+    nu_start = Complex(0.5 * (-1.0 + std::sqrt(disc)), 0.0);
   } else {
-    L_eff = Complex(-0.5, 0.5 * std::sqrt(-disc));
+    nu_start = Complex(-0.5, 0.5 * std::sqrt(-disc));
   }
 
-  if (target_c < 1e-10)
-    return L_eff;
+  if (target_c < 1e-10) {
+    return nu_start;
+  }
 
-  // Homotopy continuation: step c from 0 to target_c
-  int n_steps = std::max(30, int(std::ceil(target_c / 0.02)));
-  double dc = target_c / n_steps;
+  // Dynamic step count: keep dc per step small (~0.025) for smooth tracking
+  int n_steps = std::max(30, static_cast<int>(std::ceil(target_c / 0.025)));
+  Complex current_nu = nu_start;
+  Complex prev_nu = nu_start;  // Track previous step for extrapolation
+  double prev_c = 0.0;         // c value at the previous accepted step
+  double prev_prev_c = 0.0;    // c value two steps back
+  PhysicalDipoleRadial radial;
 
-  Complex current_nu = L_eff;
+  // Maximum allowed jump in nu per homotopy step.
+  // Physical roots move smoothly with c; any jump larger than this is spurious.
+  const double max_jump = 0.15;
 
   for (int step = 1; step <= n_steps; ++step) {
-    double current_c = step * dc;
-    double current_Alm = Alm_c0 + (Alm - Alm_c0) * (current_c / target_c);
+    double c_curr = target_c * (static_cast<double>(step) / n_steps);
+    
+    // Obtain the true physical Alm at this intermediate c value
+    double Alm_curr = 0.0;
+    if (step == n_steps) {
+      Alm_curr = Alm;
+    } else {
+      double E_curr = c_curr * c_curr / (2.0 * a * a);
+      auto ang_res = PhysicalDipoleAngular::Solve(m, 40, E_curr, a, D_phys);
+      Alm_curr = -std::get<0>(ang_res)[n];
+    }
 
-    Complex z0 = current_nu;
-    Complex z1 = current_nu + Complex(1e-4, 1e-4);
-    Complex f0 = CharacteristicEq(z0, current_c, m, current_Alm);
-    Complex f1 = CharacteristicEq(z1, current_c, m, current_Alm);
+    // --- Initial guess: linear extrapolation from the last two converged points ---
+    Complex z0;
+    if (step >= 3 && prev_c > prev_prev_c + 1e-10) {
+      // Extrapolate: nu(c) ≈ current_nu + (current_nu - prev_nu) * (dc / dc_prev)
+      double dc_prev = prev_c - prev_prev_c;
+      double dc_curr = c_curr - prev_c;
+      z0 = current_nu + (current_nu - prev_nu) * (dc_curr / dc_prev);
+    } else {
+      z0 = current_nu;
+    }
+    Complex z1 = z0 + Complex(1e-4, 1e-5);
 
-    Complex best_z = current_nu;
+    // --- Secant root finder ---
+    Complex f0 = radial.CharacteristicEq(z0, c_curr, m, Alm_curr);
+    Complex f1 = radial.CharacteristicEq(z1, c_curr, m, Alm_curr);
+
+    Complex best_z = z0;
     double best_res = std::abs(f0);
     bool converged = false;
 
-    for (int iter = 0; iter < 80; ++iter) {
+    for (int iter = 0; iter < 50; ++iter) {
       Complex df = f1 - f0;
-      if (std::abs(df) < 1e-15)
-        break;
+      if (std::abs(df) < 1e-15) break;
 
       Complex dz = -f1 * (z1 - z0) / df;
-      if (std::abs(dz) > 0.2) {
-        dz = dz * (0.2 / std::abs(dz));
+      // Trust region: limit step size
+      if (std::abs(dz) > 0.05) {
+        dz = dz * (0.05 / std::abs(dz));
       }
       Complex z2 = z1 + dz;
-      Complex f2 = CharacteristicEq(z2, current_c, m, current_Alm);
-      bool is_h = IsHalfInteger(z2);
 
-      if (std::abs(f2) < best_res && !is_h) {
+      // Keep imaginary part non-negative
+      if (z2.imag() < 0) {
+        z2 = Complex(z2.real(), -z2.imag());
+      }
+
+      // Enforce physical boundary Re(nu) >= -0.5
+      if (z2.real() < -0.5) {
+        double current_im = std::max(z2.imag(), 0.05);
+        z2 = Complex(-0.5, current_im);
+      }
+
+      Complex f2 = radial.CharacteristicEq(z2, c_curr, m, Alm_curr);
+
+      // Track best candidate (closest to zero)
+      if (std::abs(f2) < best_res) {
         best_z = z2;
         best_res = std::abs(f2);
       }
 
-      if (std::abs(f2) < 1e-8 && !is_h) {
-        current_nu = z2;
+      if (std::abs(f2) < 1e-8) {
         converged = true;
+        best_z = z2;
+        best_res = std::abs(f2);
         break;
       }
 
-      z0 = z1;
-      f0 = f1;
-      z1 = z2;
-      f1 = f2;
+      z0 = z1; f0 = f1;
+      z1 = z2; f1 = f2;
     }
-    if (!converged) {
-      if (best_res < 1e-5 && !IsHalfInteger(best_z)) {
-        current_nu = best_z;
-      }
+
+    // --- Jump guard: reject the result if it jumped too far ---
+    Complex candidate = best_z;
+    double jump = std::abs(candidate - current_nu);
+
+    // Allow the subcritical→supercritical transition: when Re(nu) approaches -0.5
+    // and an imaginary part appears, the jump in complex modulus can be large.
+    bool is_supercritical_transition = (candidate.real() < -0.48 && candidate.imag() > 0.01);
+    bool already_supercritical = (current_nu.real() < -0.48 && current_nu.imag() > 0.01);
+
+    if (jump > max_jump && !is_supercritical_transition && !already_supercritical) {
+      // The solver jumped to a spurious root. Keep current_nu unchanged.
+    } else {
+      prev_prev_c = prev_c;
+      prev_c = c_curr;
+      prev_nu = current_nu;
+      current_nu = candidate;
     }
   }
+
+  // --- Newton-Raphson polishing at the final (target_c, Alm) ---
+  // The homotopy stepping can accumulate small numerical errors, especially
+  // when nu crosses integer values. A few Newton iterations at the endpoint
+  // refine nu to machine precision.
+  {
+    Complex nu_polish = current_nu;
+    const double h = 1e-7;
+    for (int polish = 0; polish < 15; ++polish) {
+      Complex f = radial.CharacteristicEq(nu_polish, target_c, m, Alm);
+      if (std::abs(f) < 1e-12) break;
+
+      // Numerical derivative via central difference
+      Complex f_plus  = radial.CharacteristicEq(nu_polish + Complex(h, 0), target_c, m, Alm);
+      Complex f_minus = radial.CharacteristicEq(nu_polish - Complex(h, 0), target_c, m, Alm);
+      Complex df = (f_plus - f_minus) / (2.0 * h);
+      if (std::abs(df) < 1e-15) break;
+
+      Complex step = -f / df;
+      // Small trust region to prevent jumping to a different root
+      if (std::abs(step) > 0.02) step = step * (0.02 / std::abs(step));
+      nu_polish = nu_polish + step;
+
+      // Keep imaginary part non-negative
+      if (nu_polish.imag() < 0) {
+        nu_polish = Complex(nu_polish.real(), -nu_polish.imag());
+      }
+      // Enforce Re(nu) >= -0.5
+      if (nu_polish.real() < -0.5) {
+        nu_polish = Complex(-0.5, std::max(nu_polish.imag(), 0.05));
+      }
+    }
+    // Accept polished result only if it didn't jump far from the homotopy result
+    if (std::abs(nu_polish - current_nu) < max_jump) {
+      current_nu = nu_polish;
+    }
+  }
+
+  // Final cleanup: if the state started subcritical (disc >= 0) and the
+  // imaginary part is tiny, project to the real axis for cleanliness.
+  if (current_nu.imag() > 0 && current_nu.imag() < 0.01 && current_nu.real() > -0.49) {
+    current_nu = Complex(current_nu.real(), 0.0);
+  }
+
   return current_nu;
 }
 
@@ -738,7 +833,7 @@ PhysicalDipole::Solution PhysicalDipole::Solve(double E, int m, int l_max) {
 
     // Solve Radial
     sol.radial_solutions[n].nu =
-        PhysicalDipoleRadial::SolveNu(sol.c, m, Alm, Alm_c0);
+        PhysicalDipoleRadial::SolveNu(sol.c, m, Alm, Alm_c0, this->a, this->D, n);
     sol.radial_solutions[n].coeffs = PhysicalDipoleRadial::ComputeCoefficients(
         sol.radial_solutions[n].nu, sol.c, m, Alm);
   }

@@ -30,7 +30,8 @@ class PhysicalDipoleRadial {
 public:
   // Solve for the radial parameter nu (Complex)
   static std::complex<double> SolveNu(double c, int m, double Alm,
-                                      double Alm_c0);
+                                      double Alm_c0, double a, double D_phys = 0.0,
+                                      int n = 0);
 
   // Compute coefficients (Complex)
   static std::map<int, std::complex<double>>
